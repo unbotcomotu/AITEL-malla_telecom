@@ -14,13 +14,5 @@ export const DashboardApi = {
       throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
     return response.json();
-  },
-
-  async getSystemHealth() {
-    const response = await fetch('/api/dashboard/health');
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
-    }
-    return response.json();
   }
 };

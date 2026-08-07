@@ -10,8 +10,12 @@ public class HorarioProfesor {
     @Column(nullable = false)
     private Long id;
 
-    @Column(nullable = false)
-    private Long id_profesor;
+    @ManyToOne
+    @JoinColumn(name = "id_horario", nullable = false)
+    private Horario horario;
+
+    @Column(name = "id_profesor", nullable = false)
+    private Long idProfesor;
 
     public Long getId() {
         return id;
@@ -21,11 +25,19 @@ public class HorarioProfesor {
         this.id = id;
     }
 
-    public Long getId_profesor() {
-        return id_profesor;
+    public Horario getHorario() {
+        return horario;
     }
 
-    public void setId_profesor(Long id_profesor) {
-        this.id_profesor = id_profesor;
+    public void setHorario(Horario horario) {
+        this.horario = horario;
+    }
+
+    public Long getIdProfesor() {
+        return idProfesor;
+    }
+
+    public void setIdProfesor(Long idProfesor) {
+        this.idProfesor = idProfesor;
     }
 }

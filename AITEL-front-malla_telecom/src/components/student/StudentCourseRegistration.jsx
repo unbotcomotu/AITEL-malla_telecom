@@ -1,18 +1,52 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { CourseRegistrationApi } from '../../services/student/courseRegistrationApi';
 import { SystemApi } from '../../services/student/systemApi';
+
+const CARD = 'mx-auto rounded-2xl border border-line bg-surface p-8';
+
+// Orden cronológico real de un semestre dentro de su año: 1° ciclo, 2° ciclo, luego verano (-0).
+const semesterOrderKey = (semester) => {
+  const [year, cycle] = semester.split('-').map(Number);
+  const cycleOrder = cycle === 1 ? 0 : cycle === 2 ? 1 : 2;
+  return year * 3 + cycleOrder;
+};
+
+const buildSemesterSequence = (startingSemester, currentCycle) => {
+  if (!startingSemester || !currentCycle) return [];
+
+  const sequence = [];
+  const [startYear, startCycle] = startingSemester.split('-').map(Number);
+  let currentYear = startYear;
+  let cycleCursor = startCycle;
+
+  const [currentAcademicYear, currentAcademicCycle] = currentCycle.split('-').map(Number);
+
+  while (currentYear < currentAcademicYear ||
+         (currentYear === currentAcademicYear && cycleCursor <= currentAcademicCycle)) {
+    sequence.push(`${currentYear}-${cycleCursor}`);
+
+    if (cycleCursor === 1) {
+      cycleCursor = 2;
+    } else if (cycleCursor === 2) {
+      cycleCursor = 0;
+      currentYear++;
+    } else {
+      cycleCursor = 1;
+    }
+  }
+
+  return sequence;
+};
+
 const StudentCourseRegistration = () => {
-  // Estados principales
   const [currentStep, setCurrentStep] = useState('initial'); // 'initial', 'semester', 'completed'
   const [startingSemester, setStartingSemester] = useState('');
   const [currentSemesterIndex, setCurrentSemesterIndex] = useState(0);
   const [registeredSemesters, setRegisteredSemesters] = useState({});
-  const [showSuspendOption, setShowSuspendOption] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentCycle, setCurrentCycle] = useState('');
-  const [availableCoursesCache, setAvailableCoursesCache] = useState({});
 
   useEffect(() => {
     loadSystemData();
@@ -24,10 +58,14 @@ const StudentCourseRegistration = () => {
     try {
       const { currentCycle } = await SystemApi.getCurrentAcademicCycle();
       setCurrentCycle(currentCycle);
-      
-      // Intentar cargar semestres ya registrados (por si vuelve)
+
+      // El backend devuelve un array (List<SemesterHistoryEntry>); el resto del componente
+      // trabaja con un objeto indexado por semestre (igual que al registrar uno nuevo).
       const registered = await CourseRegistrationApi.getRegisteredSemesters();
-      setRegisteredSemesters(registered);
+      const registeredMap = Array.isArray(registered)
+        ? Object.fromEntries(registered.map(entry => [entry.semester, entry]))
+        : registered;
+      setRegisteredSemesters(registeredMap);
     } catch (err) {
       setError(`Error al cargar datos del sistema: ${err.message}`);
     } finally {
@@ -35,51 +73,39 @@ const StudentCourseRegistration = () => {
     }
   };
 
-  // Generar lista de semestres disponibles
   const availableSemesters = useMemo(() => {
     const semesters = [];
     for (let year = 2018; year <= 2025; year++) {
       semesters.push(`${year}-1`, `${year}-2`);
-      if (year >= 2019) semesters.push(`${year}-0`); // Ciclos de verano
+      if (year >= 2019) semesters.push(`${year}-0`);
     }
-    return semesters.sort().reverse(); // Más recientes primero
+    return semesters.sort().reverse();
   }, []);
 
-  // Generar secuencia de semestres desde el inicial
-  const semesterSequence = useMemo(() => {
-    if (!startingSemester) return [];
-    
-    const sequence = [];
-    const [startYear, startCycle] = startingSemester.split('-').map(Number);
-    let currentYear = startYear;
-    let currentCycle = startCycle;
-    
-    const currentSemesterData = currentCycle.split('-').map(Number);
-    const [currentAcademicYear, currentAcademicCycle] = currentSemesterData;
-    
-    while (currentYear < currentAcademicYear || 
-           (currentYear === currentAcademicYear && currentCycle <= currentAcademicCycle)) {
-      sequence.push(`${currentYear}-${currentCycle}`);
-      
-      // Lógica para el siguiente ciclo
-      if (currentCycle === 1) {
-        currentCycle = 2;
-      } else if (currentCycle === 2) {
-        currentCycle = 0; // Verano
-        currentYear++;
-      } else { // currentCycle === 0 (verano)
-        currentCycle = 1;
-      }
-    }
-    
-    return sequence;
-  }, [startingSemester, currentCycle]);
+  const semesterSequence = useMemo(
+    () => buildSemesterSequence(startingSemester, currentCycle),
+    [startingSemester, currentCycle]
+  );
+
+  // El backend identifica los cursos de un semestre por el ciclo curricular (1-10),
+  // no por el período académico ("2020-1"). Los ciclos de verano ("-0") no avanzan
+  // el ciclo curricular, y tampoco lo hace un semestre marcado como suspendido
+  // (un alumno atrasado puede llevar un curso de ciclo 6 en su 7mo semestre real).
+  const semesterCycles = useMemo(() => {
+    let cycle = 0;
+    return semesterSequence.map(sem => {
+      const isVerano = sem.endsWith('-0');
+      const isSuspended = Boolean(registeredSemesters[sem]?.suspended);
+      if (!isVerano && !isSuspended) cycle += 1;
+      return cycle || 1;
+    });
+  }, [semesterSequence, registeredSemesters]);
 
   const currentSemester = semesterSequence[currentSemesterIndex] || '';
+  const currentAcademicCycle = semesterCycles[currentSemesterIndex] || 1;
   const isLastSemester = currentSemesterIndex >= semesterSequence.length - 1;
   const isCurrentAcademicCycle = currentSemester === currentCycle;
 
-  // Manejar inicio del registro
   const handleStartRegistration = () => {
     if (!startingSemester) {
       alert('Por favor selecciona tu primer semestre');
@@ -88,20 +114,61 @@ const StudentCourseRegistration = () => {
     setCurrentStep('semester');
   };
 
+  const handleResumeRegistration = () => {
+    const registeredKeys = Object.keys(registeredSemesters);
+    if (registeredKeys.length === 0) return;
+
+    const earliest = registeredKeys.reduce((min, s) => (semesterOrderKey(s) < semesterOrderKey(min) ? s : min));
+    const sequence = buildSemesterSequence(earliest, currentCycle);
+    const nextIndex = sequence.findIndex(sem => !registeredKeys.includes(sem));
+
+    setStartingSemester(earliest);
+    if (nextIndex === -1) {
+      // Ya se registraron todos los semestres hasta el ciclo académico actual.
+      setCurrentSemesterIndex(Math.max(sequence.length - 1, 0));
+      setCurrentStep('completed');
+    } else {
+      setCurrentSemesterIndex(nextIndex);
+      setCurrentStep('semester');
+    }
+  };
+
+  const handleResetHistory = async () => {
+    const confirmado = window.confirm(
+      'Esto borrará TODOS los semestres y cursos que ya registraste, para que puedas empezar el registro desde cero. Esta acción no se puede deshacer. ¿Continuar?'
+    );
+    if (!confirmado) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      await CourseRegistrationApi.resetAcademicHistory();
+      setRegisteredSemesters({});
+    } catch (err) {
+      setError(`Error al reiniciar el registro: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRegisterSemester = async (semesterData) => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      // Validar prerrequisitos en el backend
       if (!semesterData.suspended && semesterData.courses.length > 0) {
+        // Cursos aprobados en semestres previos + los que se estan llevando en este mismo
+        // semestre (necesario para que los correquisitos del mismo semestre se den por cumplidos).
+        const previousCourseIds = Object.values(registeredSemesters).flatMap(s => (s.courses || []).map(c => c.id));
+        const currentCourseIds = semesterData.courses.map(c => c.courseId);
+
         for (const course of semesterData.courses) {
           if (!course.exception) {
             const validation = await CourseRegistrationApi.validatePrerequisites(
               course.courseId,
-              Object.values(registeredSemesters).flatMap(s => s.courses || [])
+              [...previousCourseIds, ...currentCourseIds]
             );
-            
+
             if (!validation.valid) {
               setValidationErrors(validation.errors);
               setLoading(false);
@@ -110,21 +177,12 @@ const StudentCourseRegistration = () => {
           }
         }
       }
-      
-      // Guardar el semestre
-      const savedSemester = await CourseRegistrationApi.registerSemester(
-        currentSemester,
-        semesterData
-      );
-      
-      setRegisteredSemesters(prev => ({
-        ...prev,
-        [currentSemester]: savedSemester
-      }));
-      
+
+      const savedSemester = await CourseRegistrationApi.registerSemester(currentSemester, semesterData);
+
+      setRegisteredSemesters(prev => ({ ...prev, [currentSemester]: savedSemester }));
       setValidationErrors([]);
-      
-      // Avanzar al siguiente semestre o finalizar
+
       if (isLastSemester) {
         await CourseRegistrationApi.completeRegistration();
         setCurrentStep('completed');
@@ -138,59 +196,46 @@ const StudentCourseRegistration = () => {
     }
   };
 
-  // Renderizar paso inicial
   const renderInitialStep = () => (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-      backdropFilter: 'blur(20px)',
-      borderRadius: '20px',
-      border: '1px solid rgba(148, 163, 184, 0.3)',
-      padding: '40px',
-      maxWidth: '600px',
-      margin: '0 auto'
-    }}>
-      <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-        <h2 style={{
-          fontSize: '28px',
-          fontWeight: 'bold',
-          background: 'linear-gradient(to right, #06b6d4, #3b82f6, #8b5cf6)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          margin: 0,
-          marginBottom: '12px'
-        }}>
-          📚 Registro de Cursos Académicos
-        </h2>
-        <p style={{ color: '#94a3b8', fontSize: '16px', margin: 0 }}>
-          Registra tu historial académico semestre por semestre
-        </p>
+    <div className={`${CARD} max-w-xl`}>
+      <div className="mb-8 text-center">
+        <h2 className="m-0 mb-3 font-display text-3xl font-bold tracking-tight text-ink">📚 Registro de Cursos Académicos</h2>
+        <p className="m-0 text-base text-muted">Registra tu historial académico semestre por semestre</p>
       </div>
 
-      <div style={{ marginBottom: '32px' }}>
-        <label style={{
-          display: 'block',
-          color: '#cbd5e1',
-          fontSize: '16px',
-          fontWeight: '600',
-          marginBottom: '12px'
-        }}>
+      {Object.keys(registeredSemesters).length > 0 && (
+        <div className="mb-8 rounded-xl border border-accent/30 bg-accent/10 p-5">
+          <div className="mb-2 text-base font-semibold text-accent">
+            📖 Ya tienes {Object.keys(registeredSemesters).length} semestre{Object.keys(registeredSemesters).length !== 1 ? 's' : ''} registrado{Object.keys(registeredSemesters).length !== 1 ? 's' : ''}
+          </div>
+          <p className="m-0 mb-3 text-sm text-ink">
+            Puedes continuar tu registro justo donde te quedaste, o reiniciarlo desde cero si fue un intento incompleto o con errores.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleResumeRegistration}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-ink-on-accent hover:opacity-90"
+            >
+              ▶️ Continuar donde me quedé
+            </button>
+            <button
+              onClick={handleResetHistory}
+              className="rounded-lg border border-warn/40 bg-warn/20 px-4 py-2 text-sm font-semibold text-warn hover:bg-warn/30"
+            >
+              🗑️ Reiniciar registro desde cero
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-8">
+        <label className="mb-3 block text-base font-semibold text-ink">
           ¿Cuál fue tu primer semestre en la universidad?
         </label>
-        
         <select
           value={startingSemester}
           onChange={(e) => setStartingSemester(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '16px 20px',
-            borderRadius: '12px',
-            border: '1px solid rgba(148, 163, 184, 0.3)',
-            background: 'rgba(30, 41, 59, 0.6)',
-            color: 'white',
-            fontSize: '16px',
-            outline: 'none',
-            cursor: 'pointer'
-          }}
+          className="w-full cursor-pointer rounded-xl border border-line bg-bg px-5 py-4 text-base text-ink outline-none focus:border-accent"
         >
           <option value="">Selecciona tu primer semestre...</option>
           {availableSemesters.map(semester => (
@@ -201,17 +246,9 @@ const StudentCourseRegistration = () => {
         </select>
       </div>
 
-      <div style={{
-        background: 'rgba(6, 182, 212, 0.1)',
-        border: '1px solid rgba(6, 182, 212, 0.3)',
-        borderRadius: '12px',
-        padding: '20px',
-        marginBottom: '32px'
-      }}>
-        <div style={{ color: '#67e8f9', fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>
-          💡 ¿Qué vas a registrar?
-        </div>
-        <ul style={{ color: '#cbd5e1', fontSize: '14px', margin: 0, paddingLeft: '20px' }}>
+      <div className="mb-8 rounded-xl border border-accent/30 bg-accent/10 p-5">
+        <div className="mb-2 text-base font-semibold text-accent">💡 ¿Qué vas a registrar?</div>
+        <ul className="m-0 list-disc pl-5 text-sm text-ink">
           <li>Los cursos que llevaste en cada semestre</li>
           <li>Las notas que obtuviste (para validar prerrequisitos)</li>
           <li>Excepciones de matrícula cuando aplique</li>
@@ -222,40 +259,19 @@ const StudentCourseRegistration = () => {
       <button
         onClick={handleStartRegistration}
         disabled={!startingSemester}
-        style={{
-          width: '100%',
-          padding: '16px 24px',
-          borderRadius: '12px',
-          border: 'none',
-          background: startingSemester 
-            ? 'linear-gradient(135deg, #06b6d4, #3b82f6)' 
-            : 'rgba(148, 163, 184, 0.3)',
-          color: 'white',
-          cursor: startingSemester ? 'pointer' : 'not-allowed',
-          fontSize: '16px',
-          fontWeight: '600',
-          transition: 'all 0.3s ease',
-          opacity: startingSemester ? 1 : 0.5
-        }}
+        className="w-full rounded-xl bg-accent px-6 py-4 text-base font-semibold text-ink-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-line disabled:text-muted disabled:opacity-100"
       >
         🚀 Comenzar Registro
       </button>
     </div>
   );
 
-  // Renderizar paso de registro por semestre
   const renderSemesterStep = () => (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-      backdropFilter: 'blur(20px)',
-      borderRadius: '20px',
-      border: '1px solid rgba(148, 163, 184, 0.3)',
-      padding: '32px',
-      maxWidth: '1000px',
-      margin: '0 auto'
-    }}>
+    <div className={`${CARD} max-w-[1000px]`}>
       <SemesterRegistrationForm
+        key={currentSemester}
         semester={currentSemester}
+        academicCycle={currentAcademicCycle}
         semesterIndex={currentSemesterIndex}
         totalSemesters={semesterSequence.length}
         isCurrentCycle={isCurrentAcademicCycle}
@@ -273,85 +289,32 @@ const StudentCourseRegistration = () => {
     </div>
   );
 
-  // Renderizar paso completado
   const renderCompletedStep = () => (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-      backdropFilter: 'blur(20px)',
-      borderRadius: '20px',
-      border: '1px solid rgba(148, 163, 184, 0.3)',
-      padding: '40px',
-      maxWidth: '600px',
-      margin: '0 auto',
-      textAlign: 'center'
-    }}>
-      <div style={{ fontSize: '64px', marginBottom: '24px' }}>🎉</div>
-      <h2 style={{
-        fontSize: '28px',
-        fontWeight: 'bold',
-        color: '#10b981',
-        margin: '0 0 16px 0'
-      }}>
-        ¡Registro Completado!
-      </h2>
-      <p style={{ color: '#cbd5e1', fontSize: '16px', marginBottom: '32px' }}>
-        Has registrado exitosamente tu historial académico. Ahora puedes visualizar tu malla curricular 
+    <div className={`${CARD} max-w-xl text-center`}>
+      <div className="mb-6 text-6xl">🎉</div>
+      <h2 className="m-0 mb-4 font-display text-3xl font-bold text-good">¡Registro Completado!</h2>
+      <p className="mb-8 text-base leading-relaxed text-ink">
+        Has registrado exitosamente tu historial académico. Ahora puedes visualizar tu malla curricular
         con todos tus cursos aprobados y planificar tu ruta académica.
       </p>
-      
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '16px',
-        marginBottom: '32px'
-      }}>
-        <div style={{
-          background: 'rgba(16, 185, 129, 0.1)',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
-          borderRadius: '12px',
-          padding: '20px'
-        }}>
-          <div style={{ color: '#10b981', fontSize: '24px', marginBottom: '8px' }}>
-            {Object.keys(registeredSemesters).length}
-          </div>
-          <div style={{ color: '#cbd5e1', fontSize: '14px' }}>
-            Semestres registrados
-          </div>
+
+      <div className="mb-8 grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div className="rounded-xl border border-good/30 bg-good/10 p-5">
+          <div className="mb-2 text-2xl font-bold text-good">{Object.keys(registeredSemesters).length}</div>
+          <div className="text-sm text-ink">Semestres registrados</div>
         </div>
-        
-        <div style={{
-          background: 'rgba(6, 182, 212, 0.1)',
-          border: '1px solid rgba(6, 182, 212, 0.3)',
-          borderRadius: '12px',
-          padding: '20px'
-        }}>
-          <div style={{ color: '#06b6d4', fontSize: '24px', marginBottom: '8px' }}>
-            {Object.values(registeredSemesters).reduce((total, semester) => 
-              total + (semester.courses?.length || 0), 0
-            )}
+
+        <div className="rounded-xl border border-accent/30 bg-accent/10 p-5">
+          <div className="mb-2 text-2xl font-bold text-accent">
+            {Object.values(registeredSemesters).reduce((total, semester) => total + (semester.courses?.length || 0), 0)}
           </div>
-          <div style={{ color: '#cbd5e1', fontSize: '14px' }}>
-            Cursos registrados
-          </div>
+          <div className="text-sm text-ink">Cursos registrados</div>
         </div>
       </div>
 
       <button
-        onClick={() => {
-          // En producción, redireccionar a la malla curricular
-          alert('Redirigiendo a la malla curricular...');
-        }}
-        style={{
-          width: '100%',
-          padding: '16px 24px',
-          borderRadius: '12px',
-          border: 'none',
-          background: 'linear-gradient(135deg, #10b981, #059669)',
-          color: 'white',
-          cursor: 'pointer',
-          fontSize: '16px',
-          fontWeight: '600'
-        }}
+        onClick={() => { window.location.href = '/curriculum'; }}
+        className="w-full rounded-xl bg-good px-6 py-4 text-base font-semibold text-ink-on-accent transition-opacity hover:opacity-90"
       >
         🗺️ Ver Mi Malla Curricular
       </button>
@@ -359,107 +322,54 @@ const StudentCourseRegistration = () => {
   );
 
   return (
-    <div style={{
-      padding: '24px',
-      color: 'white',
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }}>
+    <div className="flex min-h-screen items-center justify-center p-6 text-ink">
       {currentStep === 'initial' && renderInitialStep()}
       {currentStep === 'semester' && renderSemesterStep()}
       {currentStep === 'completed' && renderCompletedStep()}
-    {loading && (
-      <div style={{
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        zIndex: 1000,
-        padding: '12px 20px',
-        background: 'rgba(6, 182, 212, 0.9)',
-        borderRadius: '12px',
-        color: 'white',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-      }}>
-        <div style={{
-          width: '16px',
-          height: '16px',
-          border: '2px solid rgba(255, 255, 255, 0.3)',
-          borderTopColor: 'white',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite'
-        }} />
-        Guardando...
-      </div>
-    )}
-    
-    {error && (
-      <div style={{
-        position: 'fixed',
-        top: '20px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 1000,
-        padding: '16px 24px',
-        background: 'rgba(239, 68, 68, 0.95)',
-        border: '1px solid #ef4444',
-        borderRadius: '12px',
-        color: 'white',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px'
-      }}>
-        {error}
-      </div>
-    )}
 
-    <style>{`
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-    `}</style>
+      {loading && (
+        <div className="fixed right-5 top-5 z-[1000] flex items-center gap-3 rounded-xl bg-accent px-5 py-3 text-ink-on-accent shadow-lg">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-ink-on-accent/30 border-t-ink-on-accent" />
+          Guardando...
+        </div>
+      )}
+
+      {error && (
+        <div className="fixed left-1/2 top-5 z-[1000] flex -translate-x-1/2 items-center gap-3 rounded-xl border border-bad bg-bad px-6 py-4 text-white shadow-lg">
+          {error}
+        </div>
+      )}
     </div>
   );
 };
 
-// Componente para el formulario de registro de cada semestre
-const SemesterRegistrationForm = ({ 
-  semester, 
-  semesterIndex, 
-  totalSemesters, 
+const SemesterRegistrationForm = ({
+  semester,
+  academicCycle,
+  semesterIndex,
+  totalSemesters,
   isCurrentCycle,
-  onRegister, 
+  onRegister,
   onBack,
   validationErrors,
   previousSemesters,
 }) => {
-  const [semesterData, setSemesterData] = useState({
-    courses: [],
-    suspended: false,
-    notes: ''
-  });
+  const [semesterData, setSemesterData] = useState({ courses: [], suspended: false, notes: '' });
   const [showElectiveOptions, setShowElectiveOptions] = useState({});
   const [availableCourses, setAvailableCourses] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Cargar cursos al montar
   useEffect(() => {
     loadAvailableCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [semester]);
 
   const loadAvailableCourses = async () => {
     setLoading(true);
     setError(null);
     try {
-      const courses = await CourseRegistrationApi.getAvailableCoursesForSemester(
-        semester,
-        previousSemesters
-      );
+      const courses = await CourseRegistrationApi.getAvailableCoursesForSemester(academicCycle);
       setAvailableCourses(courses);
     } catch (err) {
       setError(`Error al cargar cursos: ${err.message}`);
@@ -469,10 +379,7 @@ const SemesterRegistrationForm = ({
   };
 
   const toggleElectiveOptions = (subcategoryId) => {
-    setShowElectiveOptions(prev => ({
-      ...prev,
-      [subcategoryId]: !prev[subcategoryId]
-    }));
+    setShowElectiveOptions(prev => ({ ...prev, [subcategoryId]: !prev[subcategoryId] }));
   };
 
   const handleAddCourse = (course) => {
@@ -482,81 +389,57 @@ const SemesterRegistrationForm = ({
       courseName: course.name,
       credits: course.credits,
       grade: isCurrentCycle ? null : 11,
-      exception: !course.isAllowed || false,
+      exception: false,
       isElective: course.isElective || false,
       subcategoryId: course.subcategoryId || null,
       subcategoryName: course.subcategoryName || null
     };
 
-    setSemesterData(prev => ({
-      ...prev,
-      courses: [...prev.courses, newCourse]
-    }));
+    setSemesterData(prev => ({ ...prev, courses: [...prev.courses, newCourse] }));
   };
 
-  const isCourseTaken = (courseId) => {
-    return semesterData.courses.some(c => c.courseId === courseId);
-  };
+  const isCourseTaken = (courseId) => semesterData.courses.some(c => c.courseId === courseId);
 
-  // Calcular cursos aprobados por subcategoría
   const getSubcategoryProgress = (subcategoryId) => {
-    // De semestres anteriores
     const previousApproved = Object.values(previousSemesters || {}).reduce((count, sem) => {
-      const approved = sem.courses?.filter(c => 
-        c.subcategoryId === subcategoryId && c.grade >= 11
-      ).length || 0;
+      const approved = sem.courses?.filter(c => c.subcategoryId === subcategoryId && c.grade >= 11).length || 0;
       return count + approved;
     }, 0);
 
-    // Del semestre actual (si no es el ciclo actual)
-    const currentApproved = !isCurrentCycle 
-      ? semesterData.courses.filter(c => 
-          c.subcategoryId === subcategoryId && c.grade >= 11
-        ).length 
+    const currentApproved = !isCurrentCycle
+      ? semesterData.courses.filter(c => c.subcategoryId === subcategoryId && c.grade >= 11).length
       : 0;
 
     return previousApproved + currentApproved;
   };
 
-      // Estos solo modifican el estado local del formulario:
-    const handleRemoveCourse = (courseId) => {
-      setSemesterData(prev => ({
-        ...prev,
-        courses: prev.courses.filter(c => c.courseId !== courseId)
-      }));
-    };
+  const handleRemoveCourse = (courseId) => {
+    setSemesterData(prev => ({ ...prev, courses: prev.courses.filter(c => c.courseId !== courseId) }));
+  };
 
-    const handleUpdateGrade = (courseId, grade) => {
-      setSemesterData(prev => ({
-        ...prev,
-        courses: prev.courses.map(c => 
-          c.courseId === courseId ? { ...c, grade: parseInt(grade) } : c
-        )
-      }));
-    };
+  const handleUpdateGrade = (courseId, grade) => {
+    setSemesterData(prev => ({
+      ...prev,
+      courses: prev.courses.map(c => (c.courseId === courseId ? { ...c, grade: parseInt(grade) } : c))
+    }));
+  };
 
-    const handleToggleException = (courseId) => {
-      setSemesterData(prev => ({
-        ...prev,
-        courses: prev.courses.map(c => 
-          c.courseId === courseId ? { ...c, exception: !c.exception } : c
-        )
-      }));
-    };
+  const handleToggleException = (courseId) => {
+    setSemesterData(prev => ({
+      ...prev,
+      courses: prev.courses.map(c => (c.courseId === courseId ? { ...c, exception: !c.exception } : c))
+    }));
+  };
+
+  const handleSubmit = () => {
+    onRegister(semesterData);
+  };
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '40px' }}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          border: '4px solid rgba(6, 182, 212, 0.3)',
-          borderTopColor: '#06b6d4',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite',
-          margin: '0 auto 16px'
-        }} />
-        <p style={{ color: '#cbd5e1' }}>Cargando cursos disponibles...</p>
+      <div className="p-10 text-center">
+        <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-line border-t-accent" />
+        <p className="text-ink">Cargando cursos disponibles...</p>
       </div>
     );
   }
@@ -564,81 +447,35 @@ const SemesterRegistrationForm = ({
   return (
     <>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '32px',
-        paddingBottom: '20px',
-        borderBottom: '1px solid rgba(148, 163, 184, 0.2)'
-      }}>
+      <div className="mb-8 flex items-center justify-between border-b border-line pb-5">
         <div>
-          <h3 style={{
-            fontSize: '24px',
-            fontWeight: 'bold',
-            color: '#06b6d4',
-            margin: 0,
-            marginBottom: '4px'
-          }}>
+          <h3 className="m-0 mb-1 font-display text-2xl font-bold text-accent">
             📅 Semestre {semester}
             {isCurrentCycle && (
-              <span style={{
-                marginLeft: '12px',
-                padding: '4px 8px',
-                borderRadius: '12px',
-                background: '#10b98120',
-                color: '#10b981',
-                fontSize: '12px',
-                fontWeight: '600'
-              }}>
-                ⚡ ACTUAL
-              </span>
+              <span className="ml-3 rounded-full bg-good/15 px-2 py-1 text-xs font-semibold text-good">⚡ ACTUAL</span>
             )}
           </h3>
-          <p style={{ color: '#94a3b8', margin: 0 }}>
-            {semester.endsWith('-0') ? 'Ciclo de Verano' : 'Ciclo Regular'}
-          </p>
+          <p className="m-0 text-muted">{semester.endsWith('-0') ? 'Ciclo de Verano' : 'Ciclo Regular'}</p>
         </div>
-        
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
-          color: '#94a3b8',
-          fontSize: '14px'
-        }}>
+
+        <div className="flex items-center gap-4 text-sm text-muted">
           <span>Semestre {semesterIndex + 1} de {totalSemesters}</span>
-          <div style={{
-            width: '100px',
-            height: '6px',
-            background: 'rgba(148, 163, 184, 0.3)',
-            borderRadius: '3px',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              width: `${((semesterIndex + 1) / totalSemesters) * 100}%`,
-              height: '100%',
-              background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-              transition: 'width 0.3s ease'
-            }} />
+          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-line">
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-300"
+              style={{ width: `${((semesterIndex + 1) / totalSemesters) * 100}%` }}
+            />
           </div>
         </div>
       </div>
 
-      {/* Suspend Semester Option */}
-      <div style={{
-        marginBottom: '24px',
-        padding: '16px',
-        background: 'rgba(245, 158, 11, 0.1)',
-        border: '1px solid rgba(245, 158, 11, 0.3)',
-        borderRadius: '12px'
-      }}>
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          cursor: 'pointer'
-        }}>
+      {error && (
+        <div className="mb-6 rounded-xl border border-bad/40 bg-bad/10 p-4 text-bad">{error}</div>
+      )}
+
+      {/* Suspend option */}
+      <div className="mb-6 rounded-xl border border-warn/30 bg-warn/10 p-4">
+        <label className="flex cursor-pointer items-center gap-3">
           <input
             type="checkbox"
             checked={semesterData.suspended}
@@ -647,169 +484,73 @@ const SemesterRegistrationForm = ({
               suspended: e.target.checked,
               courses: e.target.checked ? [] : prev.courses
             }))}
-            style={{
-              width: '18px',
-              height: '18px',
-              accentColor: '#f59e0b'
-            }}
+            className="h-[18px] w-[18px] accent-warn"
           />
           <div>
-            <span style={{ color: '#fbbf24', fontSize: '16px', fontWeight: '600' }}>
-              ⏸️ Suspendí este semestre
-            </span>
-            <p style={{ color: '#cbd5e1', fontSize: '14px', margin: '4px 0 0 0' }}>
-              Marca esta opción si no llevaste cursos en este semestre
-            </p>
+            <span className="text-base font-semibold text-warn">⏸️ Suspendí este semestre</span>
+            <p className="m-0 mt-1 text-sm text-ink">Marca esta opción si no llevaste cursos en este semestre</p>
           </div>
         </label>
       </div>
 
       {!semesterData.suspended && availableCourses && (
         <>
-          {/* Cursos Obligatorios */}
-          {availableCourses.obligatory?.length > 0 && (
-            <div style={{ marginBottom: '24px' }}>
-              <h5 style={{ color: '#cbd5e1', fontSize: '16px', marginBottom: '12px' }}>
-                Cursos Obligatorios
-              </h5>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: '12px'
-              }}>
-                {availableCourses.obligatory.map(course => (
-                  <CourseCard
-                    key={course.id}
-                    course={course}
-                    isTaken={isCourseTaken(course.id)}
-                    onAdd={() => handleAddCourse(course)}
-                    onRemove={() => handleRemoveCourse(course.id)}
-                    fromPreviousCycle={course.fromPreviousCycle}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <CourseSection
+            sectionKey="previous"
+            title="📌 Cursos Pendientes de Ciclos Anteriores"
+            bucket={availableCourses.previousCycleCourses}
+            showCycleBadge
+            isCourseTaken={isCourseTaken}
+            addCourse={handleAddCourse}
+            removeCourse={handleRemoveCourse}
+            getSubcategoryProgress={getSubcategoryProgress}
+            semesterData={semesterData}
+            showElectiveOptions={showElectiveOptions}
+            toggleElectiveOptions={toggleElectiveOptions}
+          />
 
-          {/* Subcategorías Electivas */}
-          {availableCourses.electiveSubcategories?.length > 0 && (
-            <div style={{ marginBottom: '24px' }}>
-              <h5 style={{ color: '#cbd5e1', fontSize: '16px', marginBottom: '12px' }}>
-                Subcategorías Electivas
-              </h5>
-              
-              {availableCourses.electiveSubcategories.map(subcategory => {
-                const approvedCount = getSubcategoryProgress(subcategory.id);
-                const isCompleted = approvedCount >= subcategory.requiredCourses;
-                const inProgressCount = semesterData.courses.filter(c => 
-                  c.subcategoryId === subcategory.id
-                ).length;
+          <CourseSection
+            sectionKey="current"
+            title={`Cursos del Ciclo ${academicCycle}`}
+            bucket={availableCourses.currentCycleCourses}
+            isCourseTaken={isCourseTaken}
+            addCourse={handleAddCourse}
+            removeCourse={handleRemoveCourse}
+            getSubcategoryProgress={getSubcategoryProgress}
+            semesterData={semesterData}
+            showElectiveOptions={showElectiveOptions}
+            toggleElectiveOptions={toggleElectiveOptions}
+          />
 
-                return (
-                  <div key={subcategory.id} style={{ marginBottom: '16px' }}>
-                    <button
-                      onClick={() => toggleElectiveOptions(subcategory.id)}
-                      disabled={isCompleted}
-                      style={{
-                        width: '100%',
-                        padding: '16px',
-                        borderRadius: '12px',
-                        border: `1px solid ${
-                          isCompleted 
-                            ? 'rgba(16, 185, 129, 0.3)' 
-                            : 'rgba(139, 92, 246, 0.3)'
-                        }`,
-                        background: `${
-                          isCompleted 
-                            ? 'rgba(16, 185, 129, 0.1)' 
-                            : 'rgba(139, 92, 246, 0.1)'
-                        }`,
-                        color: isCompleted ? '#10b981' : '#a855f7',
-                        cursor: isCompleted ? 'not-allowed' : 'pointer',
-                        fontSize: '16px',
-                        fontWeight: '600',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        textAlign: 'left',
-                        opacity: isCompleted ? 0.6 : 1,
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {isCompleted && <span>✅</span>}
-                          <span>{subcategory.name}</span>
-                        </div>
-                        <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px' }}>
-                          {isCompleted ? (
-                            `Completado (${approvedCount}/${subcategory.requiredCourses})`
-                          ) : (
-                            <>
-                              Requiere {subcategory.requiredCourses} curso{subcategory.requiredCourses !== 1 ? 's' : ''}
-                              {approvedCount > 0 && ` • ${approvedCount} ya aprobado${approvedCount !== 1 ? 's' : ''}`}
-                              {inProgressCount > 0 && ` • ${inProgressCount} en este semestre`}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <span style={{
-                        transform: showElectiveOptions[subcategory.id] ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.3s ease'
-                      }}>
-                        ▼
-                      </span>
-                    </button>
-                    
-                    {showElectiveOptions[subcategory.id] && !isCompleted && (
-                      <div style={{
-                        marginTop: '12px',
-                        padding: '16px',
-                        background: 'rgba(30, 41, 59, 0.4)',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(148, 163, 184, 0.2)'
-                      }}>
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                          gap: '12px'
-                        }}>
-                          {subcategory.courses.map(course => (
-                            <CourseCard
-                              key={course.id}
-                              course={course}
-                              isTaken={isCourseTaken(course.id)}
-                              onAdd={() => handleAddCourse({
-                                ...course,
-                                isElective: true,
-                                subcategoryId: subcategory.id,
-                                subcategoryName: subcategory.name
-                              })}
-                              onRemove={() => handleRemoveCourse(course.id)}
-                              isElective={true}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {/* Selected Courses */}
+          <CourseSection
+            sectionKey="other"
+            title="Otros Cursos (requieren excepción)"
+            bucket={availableCourses.otherCourses}
+            showCycleBadge
+            collapsedByDefault
+            isCourseTaken={isCourseTaken}
+            addCourse={handleAddCourse}
+            removeCourse={handleRemoveCourse}
+            getSubcategoryProgress={getSubcategoryProgress}
+            semesterData={semesterData}
+            showElectiveOptions={showElectiveOptions}
+            toggleElectiveOptions={toggleElectiveOptions}
+          />
+
           {semesterData.courses.length > 0 && (
-            <div style={{ marginBottom: '32px' }}>
-              <h4 style={{ color: '#67e8f9', fontSize: '18px', marginBottom: '16px' }}>
-                ✅ Cursos Seleccionados ({semesterData.courses.length})
-              </h4>
-              
-              <div style={{
-                background: 'rgba(30, 41, 59, 0.4)',
-                borderRadius: '12px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                overflow: 'hidden'
-              }}>
+            <div className="mb-8">
+              <h4 className="mb-4 text-lg font-semibold text-accent">✅ Cursos Seleccionados ({semesterData.courses.length})</h4>
+              <div className="overflow-hidden rounded-xl border border-line bg-bg">
+                <div
+                  className="grid items-center gap-4 border-b border-line bg-surface-2 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted"
+                  style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr auto' }}
+                >
+                  <div>Curso</div>
+                  <div>Créditos</div>
+                  <div>Nota (0-20)</div>
+                  <div>Excepción</div>
+                  <div />
+                </div>
                 {semesterData.courses.map((course, index) => (
                   <SelectedCourseRow
                     key={course.courseId}
@@ -825,24 +566,15 @@ const SemesterRegistrationForm = ({
             </div>
           )}
 
-          {/* Validation Errors */}
           {validationErrors.length > 0 && (
-            <div style={{
-              marginBottom: '24px',
-              padding: '16px',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: '12px'
-            }}>
-              <h5 style={{ color: '#ef4444', fontSize: '16px', marginBottom: '12px' }}>
-                ⚠️ Errores de Prerrequisitos
-              </h5>
-              <ul style={{ color: '#fca5a5', fontSize: '14px', margin: 0, paddingLeft: '20px' }}>
-                {validationErrors.map((error, index) => (
-                  <li key={index} style={{ marginBottom: '4px' }}>{error}</li>
+            <div className="mb-6 rounded-xl border border-bad/30 bg-bad/10 p-4">
+              <h5 className="mb-3 text-base font-semibold text-bad">⚠️ Errores de Prerrequisitos</h5>
+              <ul className="m-0 list-disc pl-5 text-sm text-bad">
+                {validationErrors.map((err, index) => (
+                  <li key={index} className="mb-1">{err}</li>
                 ))}
               </ul>
-              <p style={{ color: '#cbd5e1', fontSize: '12px', marginTop: '12px', margin: '12px 0 0 0' }}>
+              <p className="mt-3 text-xs text-muted">
                 💡 Tip: Puedes marcar "Excepción de matrícula" en los cursos que llevaste sin cumplir prerrequisitos
               </p>
             </div>
@@ -851,62 +583,23 @@ const SemesterRegistrationForm = ({
       )}
 
       {/* Navigation */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginTop: '32px',
-        paddingTop: '20px',
-        borderTop: '1px solid rgba(148, 163, 184, 0.2)'
-      }}>
-        <button
-          onClick={onBack}
-          style={{
-            padding: '12px 24px',
-            borderRadius: '12px',
-            border: '1px solid rgba(148, 163, 184, 0.3)',
-            background: 'rgba(30, 41, 59, 0.6)',
-            color: '#cbd5e1',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
-        >
+      <div className="mt-8 flex items-center justify-between border-t border-line pt-5">
+        <button onClick={onBack} className="rounded-xl border border-line px-6 py-3 text-sm font-medium text-ink hover:bg-bg">
           ← Anterior
         </button>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div className="flex gap-3">
           <button
             onClick={() => setSemesterData({ courses: [], suspended: false, notes: '' })}
-            style={{
-              padding: '12px 20px',
-              borderRadius: '12px',
-              border: '1px solid rgba(148, 163, 184, 0.3)',
-              background: 'transparent',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
+            className="rounded-xl border border-line px-5 py-3 text-sm text-muted hover:bg-bg"
           >
             🗑️ Limpiar
           </button>
-          
+
           <button
             onClick={handleSubmit}
             disabled={!semesterData.suspended && semesterData.courses.length === 0}
-            style={{
-              padding: '12px 24px',
-              borderRadius: '12px',
-              border: 'none',
-              background: (!semesterData.suspended && semesterData.courses.length === 0)
-                ? 'rgba(148, 163, 184, 0.3)'
-                : 'linear-gradient(135deg, #10b981, #059669)',
-              color: 'white',
-              cursor: (!semesterData.suspended && semesterData.courses.length === 0) ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              fontWeight: '600',
-              opacity: (!semesterData.suspended && semesterData.courses.length === 0) ? 0.5 : 1
-            }}
+            className="rounded-xl bg-good px-6 py-3 text-sm font-semibold text-ink-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-line disabled:text-muted disabled:opacity-100"
           >
             {semesterData.suspended ? '⏸️ Registrar Suspensión' : '✅ Confirmar Semestre'} →
           </button>
@@ -916,84 +609,219 @@ const SemesterRegistrationForm = ({
   );
 };
 
-// Componente para cada curso disponible
-const CourseCard = ({ 
-  course, 
-  isTaken, 
-  onAdd, 
-  onRemove, 
-  isElective = false,
-  fromPreviousCycle = false 
+// Agrupa un "bucket" de cursos pendientes (obligatorios sueltos + subcategorias) bajo un
+// encabezado. Se reutiliza 3 veces: ciclos anteriores pendientes, ciclo actual, y el resto.
+const CourseSection = ({
+  sectionKey,
+  title,
+  bucket,
+  showCycleBadge = false,
+  collapsedByDefault = false,
+  isCourseTaken,
+  addCourse,
+  removeCourse,
+  getSubcategoryProgress,
+  semesterData,
+  showElectiveOptions,
+  toggleElectiveOptions,
 }) => {
+  const [collapsed, setCollapsed] = useState(collapsedByDefault);
+
+  const hasObligatory = bucket?.obligatory?.length > 0;
+  const mandatorySubcategories = (bucket?.electiveSubcategories || []).filter(s => s.requiresAll);
+  const trueElectiveSubcategories = (bucket?.electiveSubcategories || []).filter(s => !s.requiresAll);
+  const isEmpty = !hasObligatory && mandatorySubcategories.length === 0 && trueElectiveSubcategories.length === 0;
+
+  if (isEmpty) return null;
+
+  const totalCount = (bucket.obligatory?.length || 0) +
+    [...mandatorySubcategories, ...trueElectiveSubcategories].reduce((sum, s) => sum + s.courses.length, 0);
+
+  const groupKey = (subcategoryId) => `${sectionKey}-${subcategoryId}`;
+
   return (
-    <div style={{
-      background: isTaken ? 'rgba(16, 185, 129, 0.1)' : 'rgba(30, 41, 59, 0.6)',
-      border: `1px solid ${isTaken ? 'rgba(16, 185, 129, 0.3)' : 'rgba(148, 163, 184, 0.2)'}`,
-      borderRadius: '12px',
-      padding: '16px',
-      position: 'relative'
-    }}>
-      {/* Indicador de ciclo anterior */}
-      {fromPreviousCycle && (
-        <div style={{
-          position: 'absolute',
-          top: '8px',
-          right: '8px',
-          padding: '2px 8px',
-          borderRadius: '10px',
-          background: 'rgba(245, 158, 11, 0.2)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
-          fontSize: '10px',
-          color: '#f59e0b',
-          fontWeight: '600'
-        }}>
-          Ciclo {course.originalCycle}
+    <div className="mb-8">
+      <button
+        type="button"
+        onClick={() => collapsedByDefault && setCollapsed(prev => !prev)}
+        className={`mb-3 flex w-full items-center justify-between text-left ${collapsedByDefault ? 'cursor-pointer' : 'cursor-default'}`}
+      >
+        <h4 className="m-0 text-lg font-semibold text-ink">
+          {title} <span className="text-sm font-normal text-muted">({totalCount})</span>
+        </h4>
+        {collapsedByDefault && (
+          <span className={`text-muted transition-transform duration-300 ${!collapsed ? 'rotate-180' : ''}`}>▼</span>
+        )}
+      </button>
+
+      {!collapsed && (
+        <>
+          {hasObligatory && (
+            <div className="mb-6">
+              <h5 className="mb-3 text-base text-ink">Cursos Obligatorios</h5>
+              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                {bucket.obligatory.map(course => (
+                  <CourseCard
+                    key={course.id}
+                    course={course}
+                    isTaken={isCourseTaken(course.id)}
+                    onAdd={() => addCourse(course)}
+                    onRemove={() => removeCourse(course.id)}
+                    showCycleBadge={showCycleBadge}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Subcategorías con "requiere todos" (ej. EEGGCC, cursos de facultad) son obligatorias,
+              no electivas: solo agrupan cursos para mostrar progreso, no implican una elección. */}
+          {mandatorySubcategories.length > 0 && (
+            <div className="mb-6">
+              <h5 className="mb-3 text-base text-ink">Cursos Obligatorios por Grupo</h5>
+              {mandatorySubcategories.map(subcategory => (
+                <SubcategoryGroup
+                  key={subcategory.id}
+                  subcategory={subcategory}
+                  elective={false}
+                  showCycleBadge={showCycleBadge}
+                  isOpen={!!showElectiveOptions[groupKey(subcategory.id)]}
+                  onToggle={() => toggleElectiveOptions(groupKey(subcategory.id))}
+                  approvedCount={getSubcategoryProgress(subcategory.id)}
+                  inProgressCount={semesterData.courses.filter(c => c.subcategoryId === subcategory.id).length}
+                  isCourseTaken={isCourseTaken}
+                  onAddCourse={(course) => addCourse({
+                    ...course,
+                    isElective: false,
+                    subcategoryId: subcategory.id,
+                    subcategoryName: subcategory.name
+                  })}
+                  onRemoveCourse={removeCourse}
+                />
+              ))}
+            </div>
+          )}
+
+          {trueElectiveSubcategories.length > 0 && (
+            <div className="mb-6">
+              <h5 className="mb-3 text-base text-ink">Subcategorías Electivas</h5>
+              {trueElectiveSubcategories.map(subcategory => (
+                <SubcategoryGroup
+                  key={subcategory.id}
+                  subcategory={subcategory}
+                  elective
+                  showCycleBadge={showCycleBadge}
+                  isOpen={!!showElectiveOptions[groupKey(subcategory.id)]}
+                  onToggle={() => toggleElectiveOptions(groupKey(subcategory.id))}
+                  approvedCount={getSubcategoryProgress(subcategory.id)}
+                  inProgressCount={semesterData.courses.filter(c => c.subcategoryId === subcategory.id).length}
+                  isCourseTaken={isCourseTaken}
+                  onAddCourse={(course) => addCourse({
+                    ...course,
+                    isElective: true,
+                    subcategoryId: subcategory.id,
+                    subcategoryName: subcategory.name
+                  })}
+                  onRemoveCourse={removeCourse}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+const SubcategoryGroup = ({
+  subcategory,
+  elective,
+  showCycleBadge,
+  isOpen,
+  onToggle,
+  approvedCount,
+  inProgressCount,
+  isCourseTaken,
+  onAddCourse,
+  onRemoveCourse,
+}) => {
+  const isCompleted = approvedCount >= subcategory.requiredCourses;
+
+  return (
+    <div className="mb-4">
+      <button
+        onClick={onToggle}
+        disabled={isCompleted}
+        className={`flex w-full items-center justify-between rounded-xl border px-4 py-4 text-left text-base font-semibold transition-colors ${
+          isCompleted
+            ? 'cursor-not-allowed border-good/30 bg-good/10 text-good opacity-70'
+            : elective
+              ? 'border-accent-deep/30 bg-accent-deep/10 text-accent-deep'
+              : 'border-line bg-surface-2 text-ink'
+        }`}
+      >
+        <div>
+          <div className="flex items-center gap-2">
+            {isCompleted && <span>✅</span>}
+            <span>{subcategory.name}</span>
+          </div>
+          <div className="mt-1 text-xs opacity-80">
+            {isCompleted ? (
+              `Completado (${approvedCount}/${subcategory.requiredCourses})`
+            ) : (
+              <>
+                {subcategory.requiresAll
+                  ? `Requiere todos los cursos (${subcategory.requiredCourses})`
+                  : `Requiere ${subcategory.requiredCourses} curso${subcategory.requiredCourses !== 1 ? 's' : ''}`}
+                {approvedCount > 0 && ` • ${approvedCount} ya aprobado${approvedCount !== 1 ? 's' : ''}`}
+                {inProgressCount > 0 && ` • ${inProgressCount} en este semestre`}
+              </>
+            )}
+          </div>
+        </div>
+        <span className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+      </button>
+
+      {isOpen && !isCompleted && (
+        <div className="mt-3 rounded-xl border border-line bg-bg p-4">
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+            {subcategory.courses.map(course => (
+              <CourseCard
+                key={course.id}
+                course={course}
+                isTaken={isCourseTaken(course.id)}
+                onAdd={() => onAddCourse(course)}
+                onRemove={() => onRemoveCourse(course.id)}
+                isElective={elective}
+                showCycleBadge={showCycleBadge}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CourseCard = ({ course, isTaken, onAdd, onRemove, isElective = false, showCycleBadge = false }) => {
+  return (
+    <div className={`relative rounded-xl border p-4 ${showCycleBadge ? 'pt-9' : ''} ${isTaken ? 'border-good/30 bg-good/10' : 'border-line bg-bg'}`}>
+      {showCycleBadge && (
+        <div className="absolute right-2 top-2 rounded-full border border-warn/30 bg-warn/20 px-2 py-0.5 text-[10px] font-semibold text-warn">
+          Ciclo {course.cycle}
         </div>
       )}
 
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: '8px'
-      }}>
-        <div style={{ flex: 1, paddingRight: fromPreviousCycle ? '60px' : '0' }}>
-          <div style={{
-            color: isElective ? '#a855f7' : '#06b6d4',
-            fontSize: '14px',
-            fontWeight: '600',
-            marginBottom: '4px'
-          }}>
-            {course.code}
-          </div>
-          <div style={{
-            color: '#cbd5e1',
-            fontSize: '16px',
-            fontWeight: '600',
-            marginBottom: '4px'
-          }}>
-            {course.name}
-          </div>
-          <div style={{
-            color: '#94a3b8',
-            fontSize: '12px'
-          }}>
-            {course.credits} crédito{course.credits !== 1 ? 's' : ''}
-          </div>
+      <div className="mb-2 flex items-start justify-between">
+        <div className="flex-1">
+          <div className={`mb-1 text-sm font-semibold ${isElective ? 'text-accent-deep' : 'text-accent'}`}>{course.code}</div>
+          <div className="mb-1 text-base font-semibold text-ink">{course.name}</div>
+          <div className="text-xs text-muted">{course.credits} crédito{course.credits !== 1 ? 's' : ''}</div>
         </div>
 
         <button
           onClick={isTaken ? onRemove : onAdd}
-          style={{
-            padding: '8px 12px',
-            borderRadius: '8px',
-            border: 'none',
-            background: isTaken ? '#ef4444' : '#10b981',
-            color: 'white',
-            cursor: 'pointer',
-            fontSize: '12px',
-            fontWeight: '600'
-          }}
+          className={`rounded-lg px-3 py-2 text-xs font-semibold text-white ${isTaken ? 'bg-bad' : 'bg-good'}`}
         >
           {isTaken ? '✕' : '+'}
         </button>
@@ -1002,73 +830,28 @@ const CourseCard = ({
   );
 };
 
-// Componente para cada curso seleccionado
-const SelectedCourseRow = ({ 
-  course, 
-  index, 
-  isCurrentCycle, 
-  onRemove, 
-  onUpdateGrade, 
-  onToggleException 
-}) => {
+const SelectedCourseRow = ({ course, index, isCurrentCycle, onRemove, onUpdateGrade, onToggleException }) => {
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
-      gap: '16px',
-      padding: '16px 20px',
-      borderBottom: index < 999 ? '1px solid rgba(148, 163, 184, 0.1)' : 'none',
-      alignItems: 'center'
-    }}>
-      {/* Course Info */}
+    <div
+      className={`grid items-center gap-4 px-5 py-4 ${index > 0 ? 'border-t border-line' : ''}`}
+      style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr auto' }}
+    >
       <div>
-        <div style={{
-          color: course.isElective ? '#a855f7' : '#06b6d4',
-          fontSize: '14px',
-          fontWeight: '600',
-          marginBottom: '2px'
-        }}>
+        <div className={`mb-0.5 text-sm font-semibold ${course.isElective ? 'text-accent-deep' : 'text-accent'}`}>
           {course.courseCode}
           {course.isElective && (
-            <span style={{
-              marginLeft: '8px',
-              padding: '2px 6px',
-              borderRadius: '10px',
-              background: '#a855f720',
-              fontSize: '10px'
-            }}>
-              ELECTIVO
-            </span>
+            <span className="ml-2 rounded-full bg-accent-deep/20 px-1.5 py-0.5 text-[10px]">ELECTIVO</span>
           )}
         </div>
-        <div style={{ color: '#cbd5e1', fontSize: '14px' }}>
-          {course.courseName}
-        </div>
-        {course.subcategoryName && (
-          <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '2px' }}>
-            {course.subcategoryName}
-          </div>
-        )}
+        <div className="text-sm text-ink">{course.courseName}</div>
+        {course.subcategoryName && <div className="mt-0.5 text-xs text-muted">{course.subcategoryName}</div>}
       </div>
 
-      {/* Credits */}
-      <div style={{ color: '#94a3b8', fontSize: '14px' }}>
-        {course.credits} crédito{course.credits !== 1 ? 's' : ''}
-      </div>
+      <div className="text-sm text-muted">{course.credits} crédito{course.credits !== 1 ? 's' : ''}</div>
 
-      {/* Grade Input */}
       <div>
         {isCurrentCycle ? (
-          <span style={{
-            padding: '6px 12px',
-            borderRadius: '8px',
-            background: '#f59e0b20',
-            color: '#f59e0b',
-            fontSize: '12px',
-            fontWeight: '600'
-          }}>
-            En curso
-          </span>
+          <span className="rounded-lg bg-warn/20 px-3 py-1.5 text-xs font-semibold text-warn">En curso</span>
         ) : (
           <input
             type="number"
@@ -1077,60 +860,19 @@ const SelectedCourseRow = ({
             value={course.grade || ''}
             onChange={(e) => onUpdateGrade(e.target.value)}
             placeholder="Nota"
-            style={{
-              width: '60px',
-              padding: '6px 8px',
-              borderRadius: '6px',
-              border: '1px solid rgba(148, 163, 184, 0.3)',
-              background: 'rgba(15, 23, 42, 0.6)',
-              color: 'white',
-              fontSize: '14px',
-              textAlign: 'center',
-              outline: 'none'
-            }}
+            className="w-[60px] rounded-md border border-line bg-bg px-2 py-1.5 text-center text-sm text-ink outline-none focus:border-accent"
           />
         )}
       </div>
 
-      {/* Exception Checkbox */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <label style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          cursor: 'pointer',
-          fontSize: '12px',
-          color: '#94a3b8'
-        }}>
-          <input
-            type="checkbox"
-            checked={course.exception}
-            onChange={onToggleException}
-            style={{
-              width: '14px',
-              height: '14px',
-              accentColor: '#f59e0b'
-            }}
-          />
+      <div className="flex items-center gap-2">
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted">
+          <input type="checkbox" checked={course.exception} onChange={onToggleException} className="h-3.5 w-3.5 accent-warn" />
           Excepción
         </label>
       </div>
 
-      {/* Remove Button */}
-      <button
-        onClick={onRemove}
-        style={{
-          padding: '6px 8px',
-          borderRadius: '6px',
-          border: 'none',
-          background: 'rgba(239, 68, 68, 0.2)',
-          color: '#ef4444',
-          cursor: 'pointer',
-          fontSize: '12px'
-        }}
-      >
-        🗑️
-      </button>
+      <button onClick={onRemove} className="rounded-md bg-bad/20 px-2 py-1.5 text-xs text-bad">🗑️</button>
     </div>
   );
 };

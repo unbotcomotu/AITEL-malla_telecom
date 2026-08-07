@@ -1,0 +1,101 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: aitel-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - aitel_mysql_data:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  usuarios-service:
+    build:
+      context: .
+      dockerfile: usuarios-service/Dockerfile
+    container_name: aitel-usuarios-service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/usuarios_service_db
+      JWT_SECRET: aitel-dev-secret-key-change-in-production-0123456789abcdef
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  cursos-service:
+    build:
+      context: .
+      dockerfile: cursos-service/Dockerfile
+    container_name: aitel-cursos-service
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/cursos_service_db
+      USUARIOS_SERVICE_URL: http://usuarios-service:8001
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  semestres-service:
+    build:
+      context: .
+      dockerfile: semestres-service/Dockerfile
+    container_name: aitel-semestres-service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/semestres_service_db
+      CURSOS_SERVICE_URL: http://cursos-service:8002
+      USUARIOS_SERVICE_URL: http://usuarios-service:8001
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  comentarios-service:
+    build:
+      context: .
+      dockerfile: comentarios-service/Dockerfile
+    container_name: aitel-comentarios-service
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/comentarios_service_db
+      USUARIOS_SERVICE_URL: http://usuarios-service:8001
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: gateway-service/Dockerfile
+    container_name: aitel-gateway-service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_SECRET: aitel-dev-secret-key-change-in-production-0123456789abcdef
+      USUARIOS_SERVICE_URL: http://usuarios-service:8001
+      CURSOS_SERVICE_URL: http://cursos-service:8002
+      SEMESTRES_SERVICE_URL: http://semestres-service:8003
+      COMENTARIOS_SERVICE_URL: http://comentarios-service:8004
+    depends_on:
+      - usuarios-service
+      - cursos-service
+      - semestres-service
+      - comentarios-service
+
+volumes:
+  aitel_mysql_data:

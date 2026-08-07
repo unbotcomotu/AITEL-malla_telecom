@@ -2,21 +2,17 @@ import React, { useState } from 'react';
 
 const StudentOnboarding = () => {
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedCourses, setSelectedCourses] = useState([]);
+  const [loading, setLoading] = useState(false);
   const totalSteps = 3;
 
-  // Al finalizar, en lugar de alert:
   const handleNext = async () => {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     } else {
       setLoading(true);
       try {
-        // Guardar que completó el onboarding
         await fetch('/api/student/complete-onboarding', { method: 'POST' });
-        
-        // Redirigir a la malla o al registro de cursos
-        window.location.href = '/curriculum'; // o usar React Router
+        window.location.href = '/curriculum';
       } catch (err) {
         alert('Error al completar onboarding');
       } finally {
@@ -32,93 +28,38 @@ const StudentOnboarding = () => {
   };
 
   return (
-    <div style={{
-      padding: '24px',
-      color: 'white',
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }}>
-      <div style={{
-        maxWidth: '800px',
-        width: '100%'
-      }}>
+    <div className="flex min-h-screen items-center justify-center p-6 text-ink">
+      <div className="w-full max-w-3xl">
         {/* Progress Bar */}
-        <div style={{
-          marginBottom: '32px',
-          background: 'rgba(30, 41, 59, 0.6)',
-          borderRadius: '12px',
-          padding: '20px',
-          border: '1px solid rgba(148, 163, 184, 0.3)'
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '12px'
-          }}>
-            <h2 style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              background: 'linear-gradient(to right, #06b6d4, #3b82f6)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              margin: 0
-            }}>
-              Configuración Inicial
-            </h2>
-            <span style={{ color: '#94a3b8', fontSize: '14px' }}>
-              Paso {currentStep} de {totalSteps}
-            </span>
+        <div className="mb-8 rounded-xl border border-line bg-surface p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="m-0 font-display text-2xl font-bold text-ink">Configuración Inicial</h2>
+            <span className="text-sm text-muted">Paso {currentStep} de {totalSteps}</span>
           </div>
-          
-          <div style={{
-            width: '100%',
-            height: '8px',
-            background: 'rgba(100, 116, 139, 0.3)',
-            borderRadius: '4px',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              width: `${(currentStep / totalSteps) * 100}%`,
-              height: '100%',
-              background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-              transition: 'width 0.3s ease'
-            }} />
+
+          <div className="h-2 w-full overflow-hidden rounded-full bg-line">
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-300"
+              style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+            />
           </div>
         </div>
 
         {/* Content */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: '16px',
-          border: '1px solid rgba(148, 163, 184, 0.3)',
-          padding: '32px',
-          minHeight: '400px'
-        }}>
+        <div className="min-h-[400px] rounded-2xl border border-line bg-surface p-8">
           {currentStep === 1 && (
             <div>
-              <h3 style={{ color: '#67e8f9', fontSize: '20px', marginBottom: '16px' }}>
-                ¡Bienvenido a la Malla Curricular! 🎓
-              </h3>
-              <p style={{ color: '#cbd5e1', lineHeight: '1.6', marginBottom: '24px' }}>
+              <h3 className="mb-4 text-xl font-semibold text-accent">¡Bienvenido a la Malla Curricular! 🎓</h3>
+              <p className="mb-6 leading-relaxed text-ink">
                 Para comenzar, necesitamos configurar tu perfil académico. Este proceso te ayudará a:
               </p>
-              <ul style={{ color: '#94a3b8', lineHeight: '1.6', marginBottom: '24px' }}>
+              <ul className="mb-6 list-disc pl-5 leading-relaxed text-muted">
                 <li>Registrar los cursos que ya has completado</li>
                 <li>Identificar prerrequisitos cumplidos</li>
                 <li>Planificar tu ruta académica</li>
                 <li>Visualizar tu progreso en tiempo real</li>
               </ul>
-              <div style={{
-                background: 'rgba(6, 182, 212, 0.1)',
-                border: '1px solid rgba(6, 182, 212, 0.3)',
-                borderRadius: '8px',
-                padding: '16px',
-                color: '#67e8f9'
-              }}>
+              <div className="rounded-lg border border-accent/30 bg-accent/10 p-4 text-accent">
                 💡 <strong>Tip:</strong> Puedes modificar esta información más tarde desde tu perfil.
               </div>
             </div>
@@ -126,40 +67,13 @@ const StudentOnboarding = () => {
 
           {currentStep === 2 && (
             <div>
-              <h3 style={{ color: '#67e8f9', fontSize: '20px', marginBottom: '16px' }}>
-                ¿En qué ciclo te encuentras actualmente? 📚
-              </h3>
-              <p style={{ color: '#cbd5e1', marginBottom: '24px' }}>
-                Selecciona el ciclo académico en el que te encuentras:
-              </p>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                gap: '12px',
-                marginBottom: '24px'
-              }}>
+              <h3 className="mb-4 text-xl font-semibold text-accent">¿En qué ciclo te encuentras actualmente? 📚</h3>
+              <p className="mb-6 text-ink">Selecciona el ciclo académico en el que te encuentras:</p>
+              <div className="mb-6 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((cycle) => (
                   <button
                     key={cycle}
-                    style={{
-                      padding: '16px',
-                      borderRadius: '8px',
-                      border: '2px solid rgba(148, 163, 184, 0.3)',
-                      background: 'rgba(30, 41, 59, 0.6)',
-                      color: 'white',
-                      cursor: 'pointer',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.borderColor = '#06b6d4';
-                      e.target.style.background = 'rgba(6, 182, 212, 0.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.borderColor = 'rgba(148, 163, 184, 0.3)';
-                      e.target.style.background = 'rgba(30, 41, 59, 0.6)';
-                    }}
+                    className="rounded-lg border-2 border-line bg-bg px-4 py-4 text-base font-semibold text-ink transition-colors hover:border-accent hover:bg-accent/10"
                   >
                     Ciclo {cycle}
                   </button>
@@ -170,88 +84,40 @@ const StudentOnboarding = () => {
 
           {currentStep === 3 && (
             <div>
-              <h3 style={{ color: '#67e8f9', fontSize: '20px', marginBottom: '16px' }}>
-                ¡Configuración Completada! ✅
-              </h3>
-              <p style={{ color: '#cbd5e1', lineHeight: '1.6', marginBottom: '24px' }}>
-                Excelente, ya tienes todo configurado. Ahora podrás:
-              </p>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                gap: '16px',
-                marginBottom: '24px'
-              }}>
-                <div style={{
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  borderRadius: '8px',
-                  padding: '16px'
-                }}>
-                  <div style={{ color: '#34d399', fontSize: '18px', marginBottom: '8px' }}>🗺️</div>
-                  <h4 style={{ color: '#10b981', fontSize: '16px', marginBottom: '8px' }}>
-                    Visualizar tu Malla
-                  </h4>
-                  <p style={{ color: '#cbd5e1', fontSize: '14px' }}>
-                    Ve todos los cursos organizados por ciclos
-                  </p>
+              <h3 className="mb-4 text-xl font-semibold text-accent">¡Configuración Completada! ✅</h3>
+              <p className="mb-6 leading-relaxed text-ink">Excelente, ya tienes todo configurado. Ahora podrás:</p>
+              <div className="mb-6 grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
+                <div className="rounded-lg border border-good/30 bg-good/10 p-4">
+                  <div className="mb-2 text-lg">🗺️</div>
+                  <h4 className="mb-2 text-base font-semibold text-good">Visualizar tu Malla</h4>
+                  <p className="text-sm text-ink">Ve todos los cursos organizados por ciclos</p>
                 </div>
-                
-                <div style={{
-                  background: 'rgba(6, 182, 212, 0.1)',
-                  border: '1px solid rgba(6, 182, 212, 0.3)',
-                  borderRadius: '8px',
-                  padding: '16px'
-                }}>
-                  <div style={{ color: '#22d3ee', fontSize: '18px', marginBottom: '8px' }}>📊</div>
-                  <h4 style={{ color: '#06b6d4', fontSize: '16px', marginBottom: '8px' }}>
-                    Seguir tu Progreso
-                  </h4>
-                  <p style={{ color: '#cbd5e1', fontSize: '14px' }}>
-                    Monitorea cursos aprobados y pendientes
-                  </p>
+
+                <div className="rounded-lg border border-accent/30 bg-accent/10 p-4">
+                  <div className="mb-2 text-lg">📊</div>
+                  <h4 className="mb-2 text-base font-semibold text-accent">Seguir tu Progreso</h4>
+                  <p className="text-sm text-ink">Monitorea cursos aprobados y pendientes</p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Navigation buttons */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginTop: '32px'
-          }}>
+          {/* Navigation */}
+          <div className="mt-8 flex justify-between">
             <button
               onClick={handlePrevious}
               disabled={currentStep === 1}
-              style={{
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
-                background: currentStep === 1 ? 'rgba(100, 116, 139, 0.3)' : 'rgba(30, 41, 59, 0.6)',
-                color: currentStep === 1 ? '#64748b' : 'white',
-                cursor: currentStep === 1 ? 'not-allowed' : 'pointer',
-                fontSize: '16px',
-                fontWeight: '500'
-              }}
+              className="rounded-lg border border-line px-6 py-3 text-base font-medium text-ink disabled:cursor-not-allowed disabled:bg-line/30 disabled:text-muted"
             >
               ← Anterior
             </button>
-            
+
             <button
               onClick={handleNext}
-              style={{
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: 'none',
-                background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '16px',
-                fontWeight: '600'
-              }}
+              disabled={loading}
+              className="rounded-lg bg-accent px-6 py-3 text-base font-semibold text-ink-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {currentStep === totalSteps ? 'Finalizar ✅' : 'Siguiente →'}
+              {loading ? 'Guardando...' : currentStep === totalSteps ? 'Finalizar ✅' : 'Siguiente →'}
             </button>
           </div>
         </div>

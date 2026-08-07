@@ -1,6 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import ThemeSwitcher from '../common/ThemeSwitcher';
+
+const FIELD_LABEL_CLASS = 'mb-2 block text-sm font-semibold text-muted';
+const FIELD_ERROR_CLASS = 'mt-1.5 text-xs text-bad';
+
+const inputClass = (hasError) =>
+  `w-full rounded-lg border-2 bg-bg px-4 py-3.5 text-base text-ink outline-none transition-colors focus:border-accent ${
+    hasError ? 'border-bad' : 'border-line'
+  }`;
+
+const GoogleIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+    <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" />
+    <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" />
+    <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.548 0 9s.348 2.825.957 4.039l3.007-2.332z" />
+    <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" />
+  </svg>
+);
 
 const AuthView = () => {
+  const { login, register } = useAuth();
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -9,35 +31,12 @@ const AuthView = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    fullName: '',
+    firstName: '',
+    lastName: '',
     studentCode: '',
     acceptTerms: false
   });
   const [errors, setErrors] = useState({});
-  const [isAnimating, setIsAnimating] = useState(false);
-
-  // Animación de partículas en el fondo
-  const [particles, setParticles] = useState([]);
-
-  useEffect(() => {
-    const generateParticles = () => {
-      const newParticles = [];
-      for (let i = 0; i < 50; i++) {
-        newParticles.push({
-          id: i,
-          x: Math.random() * 100,
-          y: Math.random() * 100,
-          size: Math.random() * 4 + 1,
-          opacity: Math.random() * 0.5 + 0.1,
-          speed: Math.random() * 2 + 0.5,
-          direction: Math.random() * 360
-        });
-      }
-      setParticles(newParticles);
-    };
-
-    generateParticles();
-  }, []);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -45,8 +44,7 @@ const AuthView = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-    
-    // Limpiar errores cuando el usuario empiece a escribir
+
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -58,7 +56,6 @@ const AuthView = () => {
   const validateForm = () => {
     const newErrors = {};
 
-    // Validación de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!formData.email) {
       newErrors.email = 'El correo electrónico es requerido';
@@ -66,7 +63,6 @@ const AuthView = () => {
       newErrors.email = 'Formato de correo electrónico inválido';
     }
 
-    // Validación de contraseña
     if (!formData.password) {
       newErrors.password = 'La contraseña es requerida';
     } else if (formData.password.length < 6) {
@@ -74,9 +70,12 @@ const AuthView = () => {
     }
 
     if (!isLogin) {
-      // Validaciones adicionales para registro
-      if (!formData.fullName) {
-        newErrors.fullName = 'El nombre completo es requerido';
+      if (!formData.firstName) {
+        newErrors.firstName = 'El nombre es requerido';
+      }
+
+      if (!formData.lastName) {
+        newErrors.lastName = 'El apellido es requerido';
       }
 
       if (!formData.studentCode) {
@@ -102,41 +101,46 @@ const AuthView = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setIsLoading(true);
-    
-    // Simular llamada a API
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
+    const result = isLogin
+      ? await login({ email: formData.email, password: formData.password })
+      : await register({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+          studentCode: formData.studentCode
+        });
+
     setIsLoading(false);
-    
-    // Aquí iría la lógica real de autenticación
-    console.log('Datos del formulario:', formData);
-    alert(isLogin ? '¡Inicio de sesión exitoso!' : '¡Registro exitoso!');
+
+    if (result.success) {
+      navigate('/');
+    } else {
+      setErrors({ form: result.error || 'No se pudo completar la solicitud.' });
+    }
   };
 
   const toggleMode = () => {
-    setIsAnimating(true);
-    setTimeout(() => {
-      setIsLogin(!isLogin);
-      setFormData({
-        email: '',
-        password: '',
-        confirmPassword: '',
-        fullName: '',
-        studentCode: '',
-        acceptTerms: false
-      });
-      setErrors({});
-      setIsAnimating(false);
-    }, 300);
+    setIsLogin(!isLogin);
+    setFormData({
+      email: '',
+      password: '',
+      confirmPassword: '',
+      firstName: '',
+      lastName: '',
+      studentCode: '',
+      acceptTerms: false
+    });
+    setErrors({});
   };
 
   const handleGoogleAuth = () => {
     setIsLoading(true);
-    // Simular autenticación con Google
     setTimeout(() => {
       setIsLoading(false);
       alert('Autenticación con Google exitosa!');
@@ -144,576 +148,225 @@ const AuthView = () => {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 75%, #475569 100%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      position: 'relative',
-      overflow: 'hidden',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
-    }}>
-      {/* Partículas animadas de fondo */}
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        {particles.map(particle => (
-          <div
-            key={particle.id}
-            style={{
-              position: 'absolute',
-              left: `${particle.x}%`,
-              top: `${particle.y}%`,
-              width: `${particle.size}px`,
-              height: `${particle.size}px`,
-              background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-              borderRadius: '50%',
-              opacity: particle.opacity,
-              animation: `float ${particle.speed + 3}s ease-in-out infinite`,
-              transform: `rotate(${particle.direction}deg)`
-            }}
-          />
-        ))}
+    <div className="relative flex min-h-screen items-center justify-center bg-bg p-5 text-ink">
+      <div className="absolute right-5 top-5">
+        <ThemeSwitcher />
       </div>
 
-      {/* Contenedor principal */}
-      <div style={{
-        width: '100%',
-        maxWidth: '440px',
-        position: 'relative',
-        zIndex: 1
-      }}>
-        {/* Header con logo y título */}
-        <div style={{
-          textAlign: 'center',
-          marginBottom: '32px'
-        }}>
-          <div style={{
-            fontSize: '48px',
-            marginBottom: '16px',
-            background: 'linear-gradient(135deg, #06b6d4, #3b82f6, #8b5cf6)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}>
-            🎓
-          </div>
-          <h1 style={{
-            fontSize: '32px',
-            fontWeight: 'bold',
-            background: 'linear-gradient(to right, #06b6d4, #3b82f6, #8b5cf6)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            margin: '0 0 8px 0'
-          }}>
-            Malla Curricular
+      <div className="w-full max-w-[440px]">
+        {/* Encabezado */}
+        <div className="mb-8 text-center">
+          <h1 className="m-0 mb-2 font-display text-4xl font-bold tracking-tight">
+            Matricula<span className="text-accent">TEL</span>
           </h1>
-          <p style={{
-            color: '#cbd5e1',
-            fontSize: '16px',
-            margin: 0
-          }}>
-            Ingeniería de Telecomunicaciones - PUCP
+          <p className="m-0 text-base text-muted">
+            Ingeniería de las Telecomunicaciones
           </p>
         </div>
 
         {/* Tarjeta principal */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: '24px',
-          border: '1px solid rgba(148, 163, 184, 0.3)',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 40px rgba(6, 182, 212, 0.1)',
-          overflow: 'hidden',
-          position: 'relative'
-        }}>
-          {/* Indicador de modo */}
-          <div style={{
-            display: 'flex',
-            background: 'rgba(30, 41, 59, 0.6)',
-            borderRadius: '16px',
-            margin: '20px',
-            padding: '4px',
-            position: 'relative'
-          }}>
-            <div style={{
-              position: 'absolute',
-              width: '50%',
-              height: '100%',
-              background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-              borderRadius: '12px',
-              transform: `translateX(${isLogin ? '0%' : '100%'})`,
-              transition: 'transform 0.3s ease',
-              boxShadow: '0 4px 12px rgba(6, 182, 212, 0.4)'
-            }} />
+        <div className="overflow-hidden rounded-lg border border-line bg-surface">
+          {/* Selector de modo */}
+          <div className="m-5 grid grid-cols-2 gap-1 rounded-lg bg-bg p-1">
             <button
+              type="button"
               onClick={toggleMode}
-              disabled={isAnimating}
-              style={{
-                flex: 1,
-                padding: '12px',
-                background: 'transparent',
-                border: 'none',
-                color: isLogin ? 'white' : '#94a3b8',
-                fontWeight: '600',
-                fontSize: '14px',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                transition: 'color 0.3s ease',
-                position: 'relative',
-                zIndex: 1
-              }}
+              className={`rounded-md py-3 text-sm font-semibold transition-colors ${
+                isLogin ? 'bg-accent text-ink-on-accent' : 'text-muted hover:text-ink'
+              }`}
             >
-              Iniciar Sesión
+              Iniciar sesión
             </button>
             <button
+              type="button"
               onClick={toggleMode}
-              disabled={isAnimating}
-              style={{
-                flex: 1,
-                padding: '12px',
-                background: 'transparent',
-                border: 'none',
-                color: !isLogin ? 'white' : '#94a3b8',
-                fontWeight: '600',
-                fontSize: '14px',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                transition: 'color 0.3s ease',
-                position: 'relative',
-                zIndex: 1
-              }}
+              className={`rounded-md py-3 text-sm font-semibold transition-colors ${
+                !isLogin ? 'bg-accent text-ink-on-accent' : 'text-muted hover:text-ink'
+              }`}
             >
               Registrarse
             </button>
           </div>
 
           {/* Formulario */}
-          <div style={{
-            padding: '0 24px 24px 24px',
-            transform: isAnimating ? 'scale(0.95)' : 'scale(1)',
-            opacity: isAnimating ? 0.5 : 1,
-            transition: 'all 0.3s ease'
-          }}>
-            <div onSubmit={handleSubmit}>
-              {/* Nombre completo (solo en registro) */}
-              {!isLogin && (
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#67e8f9',
-                    marginBottom: '8px'
-                  }}>
-                    Nombre Completo
-                  </label>
-                  <input
-                    type="text"
-                    name="fullName"
-                    value={formData.fullName}
-                    onChange={handleInputChange}
-                    style={{
-                      width: '100%',
-                      padding: '14px 16px',
-                      borderRadius: '12px',
-                      border: `2px solid ${errors.fullName ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}`,
-                      background: 'rgba(30, 41, 59, 0.6)',
-                      color: 'white',
-                      fontSize: '16px',
-                      outline: 'none',
-                      transition: 'border-color 0.3s ease',
-                      boxSizing: 'border-box'
-                    }}
-                    placeholder="Juan Pérez García"
-                    onFocus={(e) => e.target.style.borderColor = '#06b6d4'}
-                    onBlur={(e) => e.target.style.borderColor = errors.fullName ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}
-                  />
-                  {errors.fullName && (
-                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '6px 0 0 0' }}>
-                      {errors.fullName}
-                    </p>
-                  )}
+          <div className="px-6 pb-6">
+            <form onSubmit={handleSubmit}>
+              {errors.form && (
+                <div className="mb-5 rounded-lg border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad">
+                  {errors.form}
                 </div>
               )}
 
-              {/* Código de estudiante (solo en registro) */}
               {!isLogin && (
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#67e8f9',
-                    marginBottom: '8px'
-                  }}>
-                    Código de Estudiante
-                  </label>
+                <div className="mb-5">
+                  <label className={FIELD_LABEL_CLASS}>Nombres</label>
+                  <input
+                    type="text"
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleInputChange}
+                    className={inputClass(errors.firstName)}
+                    placeholder="Juan Carlos"
+                  />
+                  {errors.firstName && <p className={FIELD_ERROR_CLASS}>{errors.firstName}</p>}
+                </div>
+              )}
+
+              {!isLogin && (
+                <div className="mb-5">
+                  <label className={FIELD_LABEL_CLASS}>Apellidos</label>
+                  <input
+                    type="text"
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleInputChange}
+                    className={inputClass(errors.lastName)}
+                    placeholder="Pérez García"
+                  />
+                  {errors.lastName && <p className={FIELD_ERROR_CLASS}>{errors.lastName}</p>}
+                </div>
+              )}
+
+              {!isLogin && (
+                <div className="mb-5">
+                  <label className={FIELD_LABEL_CLASS}>Código de estudiante</label>
                   <input
                     type="text"
                     name="studentCode"
                     value={formData.studentCode}
                     onChange={handleInputChange}
-                    style={{
-                      width: '100%',
-                      padding: '14px 16px',
-                      borderRadius: '12px',
-                      border: `2px solid ${errors.studentCode ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}`,
-                      background: 'rgba(30, 41, 59, 0.6)',
-                      color: 'white',
-                      fontSize: '16px',
-                      outline: 'none',
-                      transition: 'border-color 0.3s ease',
-                      boxSizing: 'border-box'
-                    }}
+                    className={inputClass(errors.studentCode)}
                     placeholder="20201234"
                     maxLength="8"
-                    onFocus={(e) => e.target.style.borderColor = '#06b6d4'}
-                    onBlur={(e) => e.target.style.borderColor = errors.studentCode ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}
                   />
-                  {errors.studentCode && (
-                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '6px 0 0 0' }}>
-                      {errors.studentCode}
-                    </p>
-                  )}
+                  {errors.studentCode && <p className={FIELD_ERROR_CLASS}>{errors.studentCode}</p>}
                 </div>
               )}
 
-              {/* Correo electrónico */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: '#67e8f9',
-                  marginBottom: '8px'
-                }}>
-                  Correo Electrónico
-                </label>
+              <div className="mb-5">
+                <label className={FIELD_LABEL_CLASS}>Correo electrónico</label>
                 <input
                   type="email"
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  style={{
-                    width: '100%',
-                    padding: '14px 16px',
-                    borderRadius: '12px',
-                    border: `2px solid ${errors.email ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}`,
-                    background: 'rgba(30, 41, 59, 0.6)',
-                    color: 'white',
-                    fontSize: '16px',
-                    outline: 'none',
-                    transition: 'border-color 0.3s ease',
-                    boxSizing: 'border-box'
-                  }}
+                  className={inputClass(errors.email)}
                   placeholder="estudiante@pucp.edu.pe"
-                  onFocus={(e) => e.target.style.borderColor = '#06b6d4'}
-                  onBlur={(e) => e.target.style.borderColor = errors.email ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}
                 />
-                {errors.email && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '6px 0 0 0' }}>
-                    {errors.email}
-                  </p>
-                )}
+                {errors.email && <p className={FIELD_ERROR_CLASS}>{errors.email}</p>}
               </div>
 
-              {/* Contraseña */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: '#67e8f9',
-                  marginBottom: '8px'
-                }}>
-                  Contraseña
-                </label>
-                <div style={{ position: 'relative' }}>
+              <div className="mb-5">
+                <label className={FIELD_LABEL_CLASS}>Contraseña</label>
+                <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="password"
                     value={formData.password}
                     onChange={handleInputChange}
-                    style={{
-                      width: '100%',
-                      padding: '14px 50px 14px 16px',
-                      borderRadius: '12px',
-                      border: `2px solid ${errors.password ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}`,
-                      background: 'rgba(30, 41, 59, 0.6)',
-                      color: 'white',
-                      fontSize: '16px',
-                      outline: 'none',
-                      transition: 'border-color 0.3s ease',
-                      boxSizing: 'border-box'
-                    }}
+                    className={`${inputClass(errors.password)} pr-12`}
                     placeholder="••••••••"
-                    onFocus={(e) => e.target.style.borderColor = '#06b6d4'}
-                    onBlur={(e) => e.target.style.borderColor = errors.password ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '16px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      color: '#94a3b8',
-                      cursor: 'pointer',
-                      fontSize: '18px'
-                    }}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted hover:text-ink"
                   >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                    {showPassword ? 'Ocultar' : 'Mostrar'}
                   </button>
                 </div>
-                {errors.password && (
-                  <p style={{ color: '#ef4444', fontSize: '12px', margin: '6px 0 0 0' }}>
-                    {errors.password}
-                  </p>
-                )}
+                {errors.password && <p className={FIELD_ERROR_CLASS}>{errors.password}</p>}
               </div>
 
-              {/* Confirmar contraseña (solo en registro) */}
               {!isLogin && (
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#67e8f9',
-                    marginBottom: '8px'
-                  }}>
-                    Confirmar Contraseña
-                  </label>
-                  <div style={{ position: 'relative' }}>
+                <div className="mb-5">
+                  <label className={FIELD_LABEL_CLASS}>Confirmar contraseña</label>
+                  <div className="relative">
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
                       name="confirmPassword"
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
-                      style={{
-                        width: '100%',
-                        padding: '14px 50px 14px 16px',
-                        borderRadius: '12px',
-                        border: `2px solid ${errors.confirmPassword ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}`,
-                        background: 'rgba(30, 41, 59, 0.6)',
-                        color: 'white',
-                        fontSize: '16px',
-                        outline: 'none',
-                        transition: 'border-color 0.3s ease',
-                        boxSizing: 'border-box'
-                      }}
+                      className={`${inputClass(errors.confirmPassword)} pr-12`}
                       placeholder="••••••••"
-                      onFocus={(e) => e.target.style.borderColor = '#06b6d4'}
-                      onBlur={(e) => e.target.style.borderColor = errors.confirmPassword ? '#ef4444' : 'rgba(148, 163, 184, 0.3)'}
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      style={{
-                        position: 'absolute',
-                        right: '16px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: '#94a3b8',
-                        cursor: 'pointer',
-                        fontSize: '18px'
-                      }}
+                      aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted hover:text-ink"
                     >
-                      {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+                      {showConfirmPassword ? 'Ocultar' : 'Mostrar'}
                     </button>
                   </div>
-                  {errors.confirmPassword && (
-                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '6px 0 0 0' }}>
-                      {errors.confirmPassword}
-                    </p>
-                  )}
+                  {errors.confirmPassword && <p className={FIELD_ERROR_CLASS}>{errors.confirmPassword}</p>}
                 </div>
               )}
 
-              {/* Términos y condiciones (solo en registro) */}
               {!isLogin && (
-                <div style={{ marginBottom: '24px' }}>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    color: '#cbd5e1'
-                  }}>
+                <div className="mb-6">
+                  <label className="flex cursor-pointer items-center text-sm text-muted">
                     <input
                       type="checkbox"
                       name="acceptTerms"
                       checked={formData.acceptTerms}
                       onChange={handleInputChange}
-                      style={{
-                        width: '18px',
-                        height: '18px',
-                        marginRight: '12px',
-                        accent: '#06b6d4'
-                      }}
+                      className="mr-3 h-[18px] w-[18px] accent-accent"
                     />
                     Acepto los{' '}
-                    <span style={{ color: '#06b6d4', textDecoration: 'underline', marginLeft: '4px' }}>
-                      términos y condiciones
-                    </span>
+                    <span className="ml-1 text-accent underline">términos y condiciones</span>
                   </label>
-                  {errors.acceptTerms && (
-                    <p style={{ color: '#ef4444', fontSize: '12px', margin: '6px 0 0 30px' }}>
-                      {errors.acceptTerms}
-                    </p>
-                  )}
+                  {errors.acceptTerms && <p className={`${FIELD_ERROR_CLASS} ml-[30px]`}>{errors.acceptTerms}</p>}
                 </div>
               )}
 
-              {/* Botón principal */}
               <button
                 type="submit"
                 disabled={isLoading}
-                style={{
-                  width: '100%',
-                  padding: '16px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: isLoading 
-                    ? '#64748b' 
-                    : 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-                  color: 'white',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 8px 24px rgba(6, 182, 212, 0.4)',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isLoading) {
-                    e.target.style.background = 'linear-gradient(135deg, #0891b2, #2563eb)';
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 12px 32px rgba(6, 182, 212, 0.5)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isLoading) {
-                    e.target.style.background = 'linear-gradient(135deg, #06b6d4, #3b82f6)';
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 8px 24px rgba(6, 182, 212, 0.4)';
-                  }
-                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-4 text-base font-semibold text-ink-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    <div style={{
-                      width: '20px',
-                      height: '20px',
-                      border: '2px solid transparent',
-                      borderTop: '2px solid white',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
+                  <>
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-ink-on-accent/30 border-t-ink-on-accent" />
                     Procesando...
-                  </div>
+                  </>
                 ) : (
-                  `${isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'} 🚀`
+                  isLogin ? 'Iniciar sesión' : 'Crear cuenta'
                 )}
               </button>
 
-              {/* Divider */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                margin: '24px 0',
-                gap: '16px'
-              }}>
-                <div style={{ flex: 1, height: '1px', background: 'rgba(148, 163, 184, 0.3)' }} />
-                <span style={{ color: '#94a3b8', fontSize: '14px' }}>o</span>
-                <div style={{ flex: 1, height: '1px', background: 'rgba(148, 163, 184, 0.3)' }} />
+              <div className="my-6 flex items-center gap-4">
+                <div className="h-px flex-1 bg-line" />
+                <span className="text-sm text-muted">o</span>
+                <div className="h-px flex-1 bg-line" />
               </div>
 
-              {/* Botón de Google */}
               <button
                 type="button"
                 onClick={handleGoogleAuth}
                 disabled={isLoading}
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  borderRadius: '12px',
-                  border: '2px solid rgba(148, 163, 184, 0.3)',
-                  background: 'rgba(30, 41, 59, 0.6)',
-                  color: 'white',
-                  fontSize: '16px',
-                  fontWeight: '500',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.3s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '12px'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isLoading) {
-                    e.target.style.borderColor = '#06b6d4';
-                    e.target.style.background = 'rgba(6, 182, 212, 0.1)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isLoading) {
-                    e.target.style.borderColor = 'rgba(148, 163, 184, 0.3)';
-                    e.target.style.background = 'rgba(30, 41, 59, 0.6)';
-                  }
-                }}
+                className="flex w-full items-center justify-center gap-3 rounded-lg border-2 border-line py-3.5 text-base font-medium text-ink transition-colors hover:border-accent hover:bg-accent/5 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span style={{ fontSize: '20px' }}>🚀</span>
+                <GoogleIcon />
                 Continuar con Google
               </button>
 
-              {/* Enlace adicional */}
               {isLogin && (
-                <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                <div className="mt-5 text-center">
                   <button
                     type="button"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#06b6d4',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}
+                    className="text-sm text-accent underline"
                     onClick={() => alert('Función de recuperación de contraseña')}
                   >
                     ¿Olvidaste tu contraseña?
                   </button>
                 </div>
               )}
-            </div>
+            </form>
           </div>
         </div>
       </div>
-
-      {/* Estilos para animaciones */}
-      <style>
-        {`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-          
-          @keyframes float {
-            0%, 100% { transform: translateY(0px) rotate(0deg); }
-            33% { transform: translateY(-10px) rotate(120deg); }
-            66% { transform: translateY(5px) rotate(240deg); }
-          }
-        `}
-      </style>
     </div>
   );
 };

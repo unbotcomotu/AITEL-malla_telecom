@@ -1,26 +1,36 @@
-// Actualizar comentarios cuando cambia el ciclo o horarioimport React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import PrerequisitesPanel from './PrerequisitesPanel.jsx';
-import React, { useState, useCallback, useMemo,useEffect } from 'react';
+import { useAuth } from '../../../contexts/AuthContext.jsx';
 import { RatingsApi } from '../../../services/student/ratingsApi.js';
 import { CommentsApi } from '../../../services/student/commentsApi.js';
 import { CourseScheduleApi } from '../../../services/student/courseScheduleApi.js';
-const CourseDetailPanel = ({ 
-  course, 
-  onClose, 
-  isOpen, 
+
+const CARD = 'mb-6 rounded-xl bg-surface-2 p-4';
+const CARD_TITLE = 'm-0 mb-3 text-base font-semibold text-ink';
+const SELECT_CLASS = 'w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent';
+
+const CourseDetailPanel = ({
+  course,
+  onClose,
+  isOpen,
   courseGrades,
+  curriculumData,
 }) => {
+  const { user } = useAuth();
+  const currentUserId = user?.id;
+
   const [selectedCycle, setSelectedCycle] = useState('Todos');
   const [selectedSchedule, setSelectedSchedule] = useState('general');
-  const [newRating, setNewRating] = useState(0);
   const [sortBy, setSortBy] = useState('recent');
-  
-  // Estados para comentarios y respuestas
+
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
   const [newReply, setNewReply] = useState('');
   const [expandedComments, setExpandedComments] = useState(new Set());
+
+  const [ratingSummary, setRatingSummary] = useState(null);
+  const [myRating, setMyRating] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -29,18 +39,10 @@ const CourseDetailPanel = ({
   const [cycleData, setCycleData] = useState(null);
   const [scheduleLoading, setScheduleLoading] = useState(false);
 
-  // ID del usuario actual para el sistema de likes
-  const currentUserId = 'current_user';
-
-  // Información de aprobación del usuario actual (esto vendría del backend)
   const userCourseInfo = courseGrades[course?.id] ? {
     grade: courseGrades[course?.id],
-    semester: '2024-1',
-    schedule: 'horario_1',
-    professor: 'Dr. Mendoza, Dra. García'
   } : null;
 
-  // Obtener horarios disponibles para el ciclo seleccionado
   const availableSchedules = useMemo(() => {
     if (cycleData && cycleData[selectedCycle] && cycleData[selectedCycle].schedules) {
       return Object.entries(cycleData[selectedCycle].schedules).map(([key, data]) => ({
@@ -51,7 +53,6 @@ const CourseDetailPanel = ({
     return [];
   }, [selectedCycle, cycleData]);
 
-  // Obtener datos del horario actual
   const currentScheduleData = useMemo(() => {
     if (cycleData && cycleData[selectedCycle] && cycleData[selectedCycle].schedules) {
       return cycleData[selectedCycle].schedules[selectedSchedule];
@@ -59,34 +60,28 @@ const CourseDetailPanel = ({
     return cycleData?.['Todos']?.schedules?.general || {};
   }, [selectedCycle, selectedSchedule, cycleData]);
 
-  // Actualizar comentarios cuando cambia el ciclo o horario
-// ANTES: comments estáticos de props
-// DESPUÉS: cargar dinámicamente
   useEffect(() => {
     if (course && isOpen) {
       loadComments();
+      loadRatingSummary();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCycle, selectedSchedule, sortBy, course, isOpen]);
 
   const loadComments = async () => {
     setCommentsLoading(true);
     setError(null);
-    
+
     try {
-      const data = await CommentsApi.getComments(
-        course.id,
-        selectedCycle,
-        selectedSchedule
-      );
-      
-      // Aplicar ordenamiento
+      const data = await CommentsApi.getComments(course.id, selectedCycle, selectedSchedule);
+
       let sortedComments = [...data];
       if (sortBy === 'top_rated') {
         sortedComments.sort((a, b) => (b.likes - b.dislikes) - (a.likes - a.dislikes));
       } else {
         sortedComments.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       }
-      
+
       setComments(sortedComments);
     } catch (err) {
       setError(`Error al cargar comentarios: ${err.message}`);
@@ -95,49 +90,47 @@ const CourseDetailPanel = ({
     }
   };
 
-  // Actualizar horario cuando cambia el ciclo
+  const loadRatingSummary = async () => {
+    try {
+      const summary = await RatingsApi.getSummary(course.id, selectedCycle);
+      setRatingSummary(summary);
+    } catch (err) {
+      console.error('Error al cargar la calificación:', err);
+    }
+  };
+
   useEffect(() => {
     if (availableSchedules.length > 0) {
       setSelectedSchedule(availableSchedules[0].key);
     }
   }, [availableSchedules]);
 
-  // Funciones para manejar likes y dislikes
   const handleLike = async (commentId, replyId = null) => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const updatedData = await CommentsApi.toggleLike(
-        course.id,
-        commentId,
-        replyId
-      );
-      
-      // Actualizar estado local con los nuevos datos del backend
-      setComments(prevComments => {
-        return prevComments.map(comment => {
-          if (comment.id === commentId) {
-            if (replyId) {
-              return {
-                ...comment,
-                replies: comment.replies.map(reply =>
-                  reply.id === replyId ? updatedData : reply
-                )
-              };
-            }
-            return updatedData;
+      const updatedData = await CommentsApi.toggleLike(course.id, commentId, replyId);
+
+      setComments(prevComments => prevComments.map(comment => {
+        if (comment.id === commentId) {
+          if (replyId) {
+            return {
+              ...comment,
+              replies: comment.replies.map(reply => (reply.id === replyId ? updatedData : reply))
+            };
           }
-          return comment;
-        });
-      });
+          return updatedData;
+        }
+        return comment;
+      }));
     } catch (err) {
       setError(`Error al dar like: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     if (course && isOpen) {
       loadScheduleData();
@@ -147,7 +140,7 @@ const CourseDetailPanel = ({
   const loadScheduleData = async () => {
     setScheduleLoading(true);
     setError(null);
-    
+
     try {
       const data = await CourseScheduleApi.getCourseScheduleInfo(course.id);
       setCycleData(data);
@@ -161,30 +154,22 @@ const CourseDetailPanel = ({
   const handleDislike = async (commentId, replyId = null) => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const updatedData = await CommentsApi.toggleDislike(
-        course.id,
-        commentId,
-        replyId
-      );
-      
-      setComments(prevComments => {
-        return prevComments.map(comment => {
-          if (comment.id === commentId) {
-            if (replyId) {
-              return {
-                ...comment,
-                replies: comment.replies.map(reply =>
-                  reply.id === replyId ? updatedData : reply
-                )
-              };
-            }
-            return updatedData;
+      const updatedData = await CommentsApi.toggleDislike(course.id, commentId, replyId);
+
+      setComments(prevComments => prevComments.map(comment => {
+        if (comment.id === commentId) {
+          if (replyId) {
+            return {
+              ...comment,
+              replies: comment.replies.map(reply => (reply.id === replyId ? updatedData : reply))
+            };
           }
-          return comment;
-        });
-      });
+          return updatedData;
+        }
+        return comment;
+      }));
     } catch (err) {
       setError(`Error al dar dislike: ${err.message}`);
     } finally {
@@ -192,33 +177,25 @@ const CourseDetailPanel = ({
     }
   };
 
-  // Función para truncar texto
   const truncateText = (text, maxLength = 50) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
   };
 
-  // Función para formatear contenido (sin procesamiento de menciones)
-  const formatContent = (content) => {
-    return content;
-  };
+  const formatContent = (content) => content;
 
   const canInteract = course?.status === 'approved';
 
-  // Funciones para manejar comentarios
   const handleAddComment = async () => {
     if (newComment.trim() && canInteract) {
       setLoading(true);
       setError(null);
-      
+
       try {
         const newCommentData = await CommentsApi.createComment(
-          course.id,
-          selectedCycle,
-          selectedSchedule,
-          { content: newComment }
+          course.id, selectedCycle, selectedSchedule, { content: newComment }
         );
-        
+
         setComments([newCommentData, ...comments]);
         setNewComment('');
       } catch (err) {
@@ -233,29 +210,13 @@ const CourseDetailPanel = ({
     if (newReply.trim() && canInteract) {
       setLoading(true);
       setError(null);
-      
+
       try {
-        const replyData = {
-          content: newReply,
-          replyTo: replyingTo ? {
-            author: replyingTo.author,
-            content: replyingTo.content,
-            isReply: replyingTo.isReply || false
-          } : null
-        };
-        
-        const newReplyData = await CommentsApi.createReply(
-          course.id,
-          commentId,
-          replyData
-        );
+        const newReplyData = await CommentsApi.createReply(course.id, commentId, { content: newReply });
 
         setComments(comments.map(comment => {
           if (comment.id === commentId) {
-            return {
-              ...comment,
-              replies: [...(comment.replies || []), newReplyData]
-            };
+            return { ...comment, replies: [...(comment.replies || []), newReplyData] };
           }
           return comment;
         }));
@@ -271,21 +232,18 @@ const CourseDetailPanel = ({
   };
 
   const handleReply = (targetData, isReplyToReply = false) => {
-    setReplyingTo({ 
-      commentId: targetData.commentId || targetData.id, 
+    const commentId = targetData.commentId || targetData.id;
+    setReplyingTo({
+      commentId,
       author: targetData.author,
       content: targetData.content,
       isReply: isReplyToReply,
       replyId: isReplyToReply ? targetData.id : null
     });
-    
-    setNewReply(''); // Sin pre-llenar con @mención
-    
-    // Expandir el comentario para mostrar las respuestas
-    const commentId = targetData.commentId || targetData.id;
+
+    setNewReply('');
     setExpandedComments(prev => new Set([...prev, commentId]));
-    
-    // Auto-scroll al área de respuesta
+
     setTimeout(() => {
       const replyArea = document.getElementById(`reply-area-${commentId}`);
       if (replyArea) {
@@ -295,13 +253,25 @@ const CourseDetailPanel = ({
     }, 100);
   };
 
+  const toggleCommentExpansion = (commentId) => {
+    setExpandedComments(prev => {
+      const next = new Set(prev);
+      if (next.has(commentId)) {
+        next.delete(commentId);
+      } else {
+        next.add(commentId);
+      }
+      return next;
+    });
+  };
+
   const handleReport = async (commentId, replyId = null) => {
     const reason = window.prompt('¿Por qué reportas este contenido?');
     if (!reason) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       await CommentsApi.reportComment(course.id, commentId, replyId, reason);
       alert('Reporte enviado exitosamente');
@@ -313,392 +283,125 @@ const CourseDetailPanel = ({
   };
 
   const handleRatingClick = async (rating) => {
-    if (canInteract) {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        await RatingsApi.rateCourse(
-          course.id,
-          selectedCycle,
-          selectedSchedule,
-          rating
-        );
-        
-        setNewRating(rating);
-        // Opcional: recargar datos del curso para actualizar rating promedio
-      } catch (err) {
-        setError(`Error al calificar: ${err.message}`);
-      } finally {
-        setLoading(false);
-      }
+    if (!canInteract) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const summary = await RatingsApi.rateCourse(course.id, selectedCycle, selectedSchedule, rating);
+      setMyRating(rating);
+      setRatingSummary(summary);
+    } catch (err) {
+      setError(`Error al calificar: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Renderizar una respuesta
-  const renderReply = (reply, commentId) => {
-    return (
-      <div key={reply.id} style={{
-        marginLeft: '20px',
-        marginTop: '12px',
-        padding: '12px',
-        borderRadius: '8px',
-        background: 'rgba(30, 41, 59, 0.6)',
-        borderLeft: '3px solid #06b6d4'
-      }}>
-        {/* Contexto de respuesta - Información de a quién responde */}
-        {reply.replyTo && (
-          <div style={{
-            fontSize: '11px',
-            color: '#94a3b8',
-            marginBottom: '8px',
-            padding: '6px 10px',
-            background: 'rgba(148, 163, 184, 0.1)',
-            borderRadius: '6px',
-            borderLeft: '2px solid #06b6d4',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '8px'
-          }}>
-            <div style={{ 
-              color: '#06b6d4', 
-              fontWeight: '600',
-              minWidth: 'fit-content'
-            }}>
-              💬 {reply.replyTo.author}:
-            </div>
-            <div style={{ 
-              fontStyle: 'italic',
-              opacity: 0.9,
-              lineHeight: '1.3'
-            }}>
-              "{truncateText(reply.replyTo.content, 60)}"
-            </div>
-          </div>
-        )}
+  const likeBtnClass = (active) =>
+    `flex items-center gap-1 rounded-md px-2 py-1 transition-colors ${
+      active ? 'font-semibold text-good' : 'text-muted'
+    } ${canInteract && !loading ? 'cursor-pointer hover:bg-bg' : 'cursor-not-allowed opacity-60'}`;
 
-        {/* Header de la respuesta */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '8px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontWeight: '600', fontSize: '13px', color: '#67e8f9' }}>
-              {reply.author}
-            </span>
-          </div>
-          <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-            {new Date(reply.timestamp).toLocaleString()}
-          </span>
+  const dislikeBtnClass = (active) =>
+    `flex items-center gap-1 rounded-md px-2 py-1 transition-colors ${
+      active ? 'font-semibold text-bad' : 'text-muted'
+    } ${canInteract && !loading ? 'cursor-pointer hover:bg-bg' : 'cursor-not-allowed opacity-60'}`;
+
+  const renderReply = (reply, commentId) => (
+    <div key={reply.id} className="ml-5 mt-3 rounded-lg border-l-2 border-accent bg-bg p-3">
+      {reply.replyTo && (
+        <div className="mb-2 flex items-start gap-2 rounded-md border-l-2 border-accent bg-accent/10 px-2.5 py-1.5 text-[11px]">
+          <div className="min-w-fit font-semibold text-accent">💬 {reply.replyTo.author}:</div>
+          <div className="italic leading-tight opacity-90">"{truncateText(reply.replyTo.content, 60)}"</div>
         </div>
-        {error && (
-          <div style={{
-            marginBottom: '16px',
-            padding: '12px',
-            background: 'rgba(239, 68, 68, 0.2)',
-            border: '1px solid rgba(239, 68, 68, 0.4)',
-            borderRadius: '8px',
-            color: '#fca5a5',
-            fontSize: '13px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <span>⚠️ {error}</span>
-            <button onClick={() => setError(null)} style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#fca5a5',
-              cursor: 'pointer',
-              fontSize: '16px'
-            }}>✕</button>
-          </div>
-        )}
-        {/* Contenido de la respuesta */}
-        <p style={{
-          fontSize: '13px',
-          color: '#cbd5e1',
-          lineHeight: '1.4',
-          margin: '0 0 8px 0',
-          wordBreak: 'break-word'
-        }}>
-          {formatContent(reply.content)}
-        </p>
+      )}
 
-        {/* Botones de interacción de la respuesta */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px' }}>
-          <button
-            onClick={() => handleLike(commentId, reply.id)}
-            disabled={!canInteract}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: reply.likedBy?.includes(currentUserId) ? '#10b981' : '#94a3b8',
-              cursor: canInteract ? 'pointer' : 'not-allowed',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontWeight: reply.likedBy?.includes(currentUserId) ? '600' : 'normal',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            👍 {reply.likes}
-          </button>
-
-          <button
-            onClick={() => handleDislike(commentId, reply.id)}
-            disabled={!canInteract}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: reply.dislikedBy?.includes(currentUserId) ? '#ef4444' : '#94a3b8',
-              cursor: canInteract ? 'pointer' : 'not-allowed',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontWeight: reply.dislikedBy?.includes(currentUserId) ? '600' : 'normal',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            👎 {reply.dislikes}
-          </button>
-
-          {canInteract && (
-            <button
-              onClick={() => handleReply({ 
-                commentId: commentId, 
-                author: reply.author, 
-                content: reply.content 
-              }, true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#94a3b8',
-                cursor: 'pointer',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                fontSize: '11px'
-              }}
-            >
-              💬 Responder
-            </button>
-          )}
-
-          <button
-            onClick={() => handleReport(commentId, reply.id)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontSize: '11px'
-            }}
-          >
-            🚩
-          </button>
-        </div>
+      <div className="mb-2 flex items-start justify-between">
+        <span className="text-[13px] font-semibold text-accent">{reply.author}</span>
+        <span className="text-[11px] text-muted">{new Date(reply.timestamp).toLocaleString()}</span>
       </div>
-    );
-  };
 
-  // Renderizar un comentario principal
+      <p className="m-0 mb-2 break-words text-[13px] leading-snug text-ink">{formatContent(reply.content)}</p>
+
+      <div className="flex items-center gap-3 text-[11px]">
+        <button onClick={() => handleLike(commentId, reply.id)} disabled={!canInteract} className={likeBtnClass(reply.likedBy?.includes(currentUserId))}>
+          👍 {reply.likes}
+        </button>
+        <button onClick={() => handleDislike(commentId, reply.id)} disabled={!canInteract} className={dislikeBtnClass(reply.dislikedBy?.includes(currentUserId))}>
+          👎 {reply.dislikes}
+        </button>
+        {canInteract && (
+          <button
+            onClick={() => handleReply({ commentId, author: reply.author, content: reply.content }, true)}
+            className="rounded-md px-2 py-1 text-muted hover:bg-bg"
+          >
+            💬 Responder
+          </button>
+        )}
+        <button onClick={() => handleReport(commentId, reply.id)} className="rounded-md px-2 py-1 text-muted hover:bg-bg">
+          🚩
+        </button>
+      </div>
+    </div>
+  );
+
   const renderComment = (comment) => {
     const isExpanded = expandedComments.has(comment.id);
     const hasReplies = comment.replies && comment.replies.length > 0;
     const isReplying = replyingTo?.commentId === comment.id;
 
     return (
-      <div key={comment.id} style={{ marginBottom: '20px' }}>
-        <div style={{
-          padding: '16px',
-          borderRadius: '12px',
-          background: 'rgba(51, 65, 85, 0.7)',
-          border: '1px solid rgba(148, 163, 184, 0.2)'
-        }}>
-          {/* Header del comentario */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            marginBottom: '8px'
-          }}>
-            <span style={{ fontWeight: '600', fontSize: '14px', color: '#67e8f9' }}>
-              {comment.author}
-            </span>
-            <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-              {new Date(comment.timestamp).toLocaleString()}
-            </span>
+      <div key={comment.id} className="mb-5">
+        <div className="rounded-xl border border-line bg-bg p-4">
+          <div className="mb-2 flex items-start justify-between">
+            <span className="text-sm font-semibold text-accent">{comment.author}</span>
+            <span className="text-xs text-muted">{new Date(comment.timestamp).toLocaleString()}</span>
           </div>
 
-          {/* Contenido del comentario */}
-          <p style={{
-            fontSize: '14px',
-            color: '#cbd5e1',
-            lineHeight: '1.5',
-            margin: '0 0 12px 0',
-            wordBreak: 'break-word'
-          }}>
-            {formatContent(comment.content)}
-          </p>
+          <p className="m-0 mb-3 break-words text-sm leading-relaxed text-ink">{formatContent(comment.content)}</p>
 
-          {/* Botones de interacción del comentario */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12px' }}>
-            <button
-              onClick={() => handleLike(comment.id)}
-              disabled={!canInteract || loading}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: comment.likedBy?.includes(currentUserId) ? '#10b981' : '#94a3b8',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                fontWeight: comment.likedBy?.includes(currentUserId) ? '600' : 'normal',
-                transition: 'all 0.2s ease',
-                cursor: (!canInteract || loading) ? 'not-allowed' : 'pointer',
-                opacity: loading ? '0.6' : '1'
-              }}
-            >
+          <div className="flex flex-wrap items-center gap-4 text-xs">
+            <button onClick={() => handleLike(comment.id)} disabled={!canInteract || loading} className={likeBtnClass(comment.likedBy?.includes(currentUserId))}>
               👍 {comment.likes}
             </button>
-
-            <button
-              onClick={() => handleDislike(comment.id)}
-              disabled={!canInteract||loading}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: comment.dislikedBy?.includes(currentUserId) ? '#ef4444' : '#94a3b8',
-                cursor: canInteract ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                fontWeight: comment.dislikedBy?.includes(currentUserId) ? '600' : 'normal',
-                transition: 'all 0.2s ease',
-                cursor: (!canInteract || loading) ? 'not-allowed' : 'pointer',
-                opacity: loading ? '0.6' : '1'
-              }}
-            >
+            <button onClick={() => handleDislike(comment.id)} disabled={!canInteract || loading} className={dislikeBtnClass(comment.dislikedBy?.includes(currentUserId))}>
               👎 {comment.dislikes}
             </button>
 
             {canInteract && (
               <button
-                onClick={() => handleReply({
-                  id: comment.id,
-                  author: comment.author,
-                  content: comment.content
-                }, false)}
-                disabled={loadComments}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? '0.6' : '1'
-                }}
+                onClick={() => handleReply({ id: comment.id, author: comment.author, content: comment.content }, false)}
+                disabled={loading}
+                className="rounded-md px-2 py-1 text-muted hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 💬 Responder
               </button>
             )}
 
             {hasReplies && (
-              <button
-                onClick={() => toggleCommentExpansion(comment.id)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#06b6d4',
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: '600'
-                }}
-              >
+              <button onClick={() => toggleCommentExpansion(comment.id)} className="rounded-md px-2 py-1 font-semibold text-accent hover:bg-accent/10">
                 {isExpanded ? '▼' : '▶'} {comment.replies.length} respuesta{comment.replies.length !== 1 ? 's' : ''}
               </button>
             )}
 
-            <button
-              onClick={() => handleReport(comment.id)}
-              disabled={loading}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#94a3b8',
-                cursor: 'pointer',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? '0.6' : '1'
-              }}
-            >
+            <button onClick={() => handleReport(comment.id)} disabled={loading} className="rounded-md px-2 py-1 text-muted hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60">
               🚩 Reportar
             </button>
           </div>
         </div>
 
-        {/* Respuestas expandidas */}
         {isExpanded && hasReplies && (
-          <div style={{ marginTop: '8px' }}>
-            {comment.replies.map(reply => renderReply(reply, comment.id))}
-          </div>
+          <div className="mt-2">{comment.replies.map(reply => renderReply(reply, comment.id))}</div>
         )}
 
-        {/* Área de respuesta */}
         {isReplying && (
-          <div style={{
-            marginTop: '12px',
-            padding: '12px',
-            borderRadius: '8px',
-            background: 'rgba(6, 182, 212, 0.1)',
-            border: '1px solid rgba(6, 182, 212, 0.3)'
-          }}>
-            {/* Información de a quién se está respondiendo */}
-            <div style={{
-              marginBottom: '12px',
-              padding: '8px 12px',
-              background: 'rgba(6, 182, 212, 0.15)',
-              borderRadius: '6px',
-              borderLeft: '3px solid #06b6d4'
-            }}>
-              <div style={{
-                color: '#06b6d4',
-                fontSize: '12px',
-                fontWeight: '600',
-                marginBottom: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <span>💬</span>
-                <span>Respondiendo a {replyingTo.author}:</span>
+          <div className="mt-3 rounded-lg border border-accent/30 bg-accent/10 p-3">
+            <div className="mb-3 rounded-md border-l-[3px] border-accent bg-accent/15 px-3 py-2">
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-accent">
+                <span>💬</span><span>Respondiendo a {replyingTo.author}:</span>
               </div>
-              <div style={{
-                color: '#0891b2',
-                fontSize: '11px',
-                fontStyle: 'italic',
-                lineHeight: '1.3',
-                opacity: 0.9
-              }}>
+              <div className="text-[11px] italic leading-tight text-accent/80">
                 "{truncateText(replyingTo.content, 80)}"
               </div>
             </div>
@@ -708,51 +411,19 @@ const CourseDetailPanel = ({
               value={newReply}
               onChange={(e) => setNewReply(e.target.value)}
               placeholder="Escribe tu respuesta..."
-              style={{
-                width: '100%',
-                minHeight: '60px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
-                background: 'rgba(30, 41, 59, 0.8)',
-                color: 'white',
-                fontSize: '13px',
-                resize: 'vertical',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
+              className="min-h-[60px] w-full resize-y rounded-md border border-line bg-bg px-3 py-2 text-[13px] text-ink outline-none focus:border-accent"
             />
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
+            <div className="mt-2 flex justify-end gap-2">
               <button
-                onClick={() => {
-                  setReplyingTo(null);
-                  setNewReply('');
-                }}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid rgba(148, 163, 184, 0.3)',
-                  background: 'transparent',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  fontSize: '12px'
-                }}
+                onClick={() => { setReplyingTo(null); setNewReply(''); }}
+                className="rounded-md border border-line px-3 py-1.5 text-xs text-muted hover:bg-bg"
               >
                 Cancelar
               </button>
               <button
                 onClick={() => handleAddReply(comment.id)}
                 disabled={!newReply.trim()}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: newReply.trim() ? '#06b6d4' : '#64748b',
-                  color: 'white',
-                  cursor: newReply.trim() ? 'pointer' : 'not-allowed',
-                  fontSize: '12px',
-                  fontWeight: '600'
-                }}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold text-ink-on-accent ${newReply.trim() ? 'bg-accent' : 'cursor-not-allowed bg-muted'}`}
               >
                 Responder
               </button>
@@ -765,163 +436,65 @@ const CourseDetailPanel = ({
 
   if (!isOpen || !course) return null;
 
+  const statusBadge = {
+    approved: { label: '✓ Aprobado', className: 'bg-good text-ink-on-accent' },
+    available: { label: '○ Disponible', className: 'bg-accent text-ink-on-accent' },
+    in_progress: { label: '◐ En progreso', className: 'bg-warn text-ink-on-accent' },
+  }[course.status] || { label: '🔒 Requiere prerrequisitos', className: 'bg-muted text-ink-on-accent' };
+
   return (
-    <div 
-      style={{ 
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'stretch'
-      }}
-      onClick={onClose}
-    >
-      <div 
-        style={{
-          marginLeft: 'auto',
-          width: '100%',
-          maxWidth: '500px',
-          height: '100vh',
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
-          borderLeft: '1px solid rgba(148, 163, 184, 0.3)',
-          boxShadow: '-20px 0 40px rgba(0, 0, 0, 0.5)',
-          color: 'white',
-          padding: '24px',
-          overflowY: 'auto',
-          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 0.3s ease-in-out'
-        }}
+    <div className="fixed inset-0 z-[1000] flex items-stretch bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="ml-auto h-screen w-full max-w-[500px] overflow-y-auto border-l border-line bg-surface p-6 text-ink"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+        <div className="mb-6 flex items-start justify-between">
           <div>
-            <h2 style={{ 
-              fontSize: '24px', 
-              fontWeight: 'bold', 
-              background: 'linear-gradient(to right, #06b6d4, #3b82f6)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              margin: 0,
-              marginBottom: '4px'
-            }}>
-              {course.label}
-            </h2>
-            <p style={{ fontSize: '14px', color: '#cbd5e1', margin: 0 }}>
-              Ciclo {course.cycle} • {course.credits} créditos
-            </p>
+            <h2 className="m-0 mb-1 font-display text-2xl font-bold">{course.label}</h2>
+            <p className="m-0 text-sm text-muted">Ciclo {course.cycle} • {course.credits} créditos</p>
           </div>
-          <button 
-            onClick={onClose} 
-            style={{
-              background: 'rgba(100, 116, 139, 0.2)',
-              backdropFilter: 'blur(10px)',
-              color: '#94a3b8',
-              border: 'none',
-              fontSize: '24px',
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.2s ease'
-            }}
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-bg text-2xl text-muted transition-colors hover:text-ink"
           >
             ×
           </button>
         </div>
 
+        {error && (
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-bad/40 bg-bad/10 px-3 py-3 text-[13px] text-bad">
+            <span>⚠️ {error}</span>
+            <button onClick={() => setError(null)} className="text-base text-bad">✕</button>
+          </div>
+        )}
+
         {/* Selector de Ciclo y Horario */}
         {scheduleLoading ? (
-          <div style={{ textAlign: 'center', padding: '16px', color: '#94a3b8' }}>
-            <div style={{
-              width: '20px',
-              height: '20px',
-              border: '2px solid rgba(6, 182, 212, 0.3)',
-              borderTopColor: '#06b6d4',
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite',
-              margin: '0 auto 8px'
-            }} />
+          <div className="p-4 text-center text-muted">
+            <div className="mx-auto mb-2 h-5 w-5 animate-spin rounded-full border-2 border-line border-t-accent" />
             Cargando horarios...
           </div>
         ) : cycleData && (
-          <div style={{ 
-            marginBottom: '24px', 
-            padding: '16px', 
-            borderRadius: '12px', 
-            background: 'rgba(30, 41, 59, 0.6)', 
-            backdropFilter: 'blur(10px)' 
-          }}>
-            <h3 style={{ 
-              fontWeight: '600', 
-              marginBottom: '12px', 
-              color: '#67e8f9', 
-              fontSize: '16px',
-              margin: '0 0 12px 0'
-            }}>
-              📅 Ciclo y Horario
-            </h3>
-            
-            {/* Selector de Ciclo */}
-            <div style={{ marginBottom: availableSchedules.length > 1 ? '12px' : '0' }}>
-              <label style={{ display: 'block', color: '#cbd5e1', fontSize: '14px', marginBottom: '6px' }}>
-                Ciclo Académico
-              </label>
-              <select 
-                value={selectedCycle} 
-                onChange={(e) => setSelectedCycle(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-                  border: '1px solid rgba(148, 163, 184, 0.3)',
-                  color: 'white',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              >
+          <div className={CARD}>
+            <h3 className={CARD_TITLE}>📅 Ciclo y Horario</h3>
+
+            <div className={availableSchedules.length > 1 ? 'mb-3' : ''}>
+              <label className="mb-1.5 block text-sm text-muted">Ciclo Académico</label>
+              <select value={selectedCycle} onChange={(e) => setSelectedCycle(e.target.value)} className={SELECT_CLASS}>
                 {Object.keys(cycleData).map(cycle => (
-                  <option key={cycle} value={cycle}>
-                    {cycle === 'Todos' ? '📊 Todos los ciclos' : cycle}
-                  </option>
+                  <option key={cycle} value={cycle}>{cycle === 'Todos' ? 'Todos los ciclos' : cycle}</option>
                 ))}
               </select>
             </div>
 
-            {/* Selector de Horario */}
             {availableSchedules.length > 1 && (
               <div>
-                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '14px', marginBottom: '6px' }}>
-                  Horario
-                </label>
-                <select 
-                  value={selectedSchedule} 
-                  onChange={(e) => setSelectedSchedule(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-                    border: '1px solid rgba(148, 163, 184, 0.3)',
-                    color: 'white',
-                    fontSize: '14px',
-                    outline: 'none'
-                  }}
-                >
+                <label className="mb-1.5 block text-sm text-muted">Horario</label>
+                <select value={selectedSchedule} onChange={(e) => setSelectedSchedule(e.target.value)} className={SELECT_CLASS}>
                   {availableSchedules.map((schedule, index) => (
-                    <option key={schedule.key} value={schedule.key}>
-                      Horario {index + 1}: {schedule.schedule}
-                    </option>
+                    <option key={schedule.key} value={schedule.key}>Horario {index + 1}: {schedule.schedule}</option>
                   ))}
                 </select>
               </div>
@@ -930,105 +503,55 @@ const CourseDetailPanel = ({
         )}
 
         {/* Estado del curso */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            padding: '8px 16px',
-            borderRadius: '20px',
-            fontSize: '14px',
-            fontWeight: '600',
-            background: course.status === 'approved' ? 'linear-gradient(to right, #10b981, #059669)' :
-                       course.status === 'available' ? 'linear-gradient(to right, #06b6d4, #0891b2)' :
-                       course.status === 'in_progress' ? 'linear-gradient(to right, #f59e0b, #d97706)' :
-                       'linear-gradient(to right, #64748b, #475569)',
-            color: 'white'
-          }}>
-            {course.status === 'approved' ? '✓ Aprobado' :
-             course.status === 'available' ? '○ Disponible' :
-             course.status === 'in_progress' ? '◐ En Progreso' :
-             '🔒 Requiere Prerrequisitos'}
+        <div className="mb-6">
+          <div className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold ${statusBadge.className}`}>
+            {statusBadge.label}
           </div>
-          
-          {/* Información de aprobación del usuario */}
+
           {userCourseInfo && (
-            <div style={{
-              marginTop: '12px',
-              padding: '12px 16px',
-              borderRadius: '12px',
-              background: 'rgba(16, 185, 129, 0.1)',
-              border: '1px solid rgba(16, 185, 129, 0.3)'
-            }}>
-              <div style={{ 
-                color: '#10b981', 
-                fontSize: '12px', 
-                fontWeight: '600',
-                marginBottom: '6px'
-              }}>
-                📊 Tu información del curso:
-              </div>
-              <div style={{ fontSize: '13px', color: '#34d399', lineHeight: '1.4' }}>
+            <div className="mt-3 rounded-xl border border-good/30 bg-good/10 p-3">
+              <div className="mb-1.5 text-xs font-semibold text-good">📊 Tu información del curso:</div>
+              <div className="text-[13px] leading-relaxed text-good/90">
                 <div><strong>Nota:</strong> {userCourseInfo.grade}/20</div>
-                <div><strong>Semestre:</strong> {userCourseInfo.semester}</div>
-                <div><strong>Profesor(es):</strong> {userCourseInfo.professor}</div>
-                <div><strong>Horario:</strong> {userCourseInfo.schedule.replace('_', ' ')}</div>
               </div>
             </div>
           )}
-          
+
           {!canInteract && (
-            <p style={{ fontSize: '12px', color: '#fbbf24', marginTop: '8px', margin: '8px 0 0 0' }}>
-              ⚠️ Solo lectura - Aprueba el curso para interactuar
-            </p>
+            <p className="mt-2 text-xs text-warn">⚠️ Solo lectura - Aprueba el curso para interactuar</p>
           )}
         </div>
 
-        {/* Panel de prerrequisitos */}
-        <PrerequisitesPanel 
-          course={course} 
+        {/* Prerrequisitos */}
+        <PrerequisitesPanel
+          course={course}
           courseGrades={courseGrades}
           edges={curriculumData?.edges || []}
           nodes={curriculumData?.nodes || []}
           prerequisiteTypes={curriculumData?.prerequisiteTypes || {}}
         />
-        {/* Información del Profesor y Horario */}
+
+        {/* Info del horario */}
         {currentScheduleData && Object.keys(currentScheduleData).length > 0 && (
-          <div style={{ 
-            padding: '16px', 
-            borderRadius: '12px', 
-            marginBottom: '24px', 
-            background: 'rgba(30, 41, 59, 0.6)', 
-            backdropFilter: 'blur(10px)' 
-          }}>
-            <h3 style={{ 
-              fontWeight: '600', 
-              marginBottom: '12px', 
-              color: '#67e8f9',
-              fontSize: '16px',
-              margin: '0 0 12px 0'
-            }}>
-              👨‍🏫 Información del Horario
-            </h3>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+          <div className={CARD}>
+            <h3 className={CARD_TITLE}>👨‍🏫 Información del Horario</h3>
+            <div className="flex flex-col gap-2 text-sm">
               {currentScheduleData.professors && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#94a3b8' }}>👨‍🏫 Profesor{currentScheduleData.professors.length > 1 ? 'es' : ''}:</span>
-                  <span style={{ color: '#cbd5e1' }}>{currentScheduleData.professors.join(', ')}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted">👨‍🏫 Profesor{currentScheduleData.professors.length > 1 ? 'es' : ''}:</span>
+                  <span className="text-ink">{currentScheduleData.professors.join(', ')}</span>
                 </div>
               )}
-              
               {currentScheduleData.classroom && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#94a3b8' }}>📍 Aula:</span>
-                  <span style={{ color: '#cbd5e1' }}>{currentScheduleData.classroom}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted">📍 Aula:</span>
+                  <span className="text-ink">{currentScheduleData.classroom}</span>
                 </div>
               )}
-              
               {currentScheduleData.schedule && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#94a3b8' }}>🕐 Horario:</span>
-                  <span style={{ color: '#cbd5e1' }}>{currentScheduleData.schedule}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted">🕐 Horario:</span>
+                  <span className="text-ink">{currentScheduleData.schedule}</span>
                 </div>
               )}
             </div>
@@ -1036,200 +559,87 @@ const CourseDetailPanel = ({
         )}
 
         {/* Descripción */}
-        <div style={{ 
-          padding: '16px', 
-          borderRadius: '12px', 
-          marginBottom: '24px', 
-          background: 'rgba(30, 41, 59, 0.6)', 
-          backdropFilter: 'blur(10px)' 
-        }}>
-          <h3 style={{ 
-            fontWeight: '600', 
-            marginBottom: '12px', 
-            color: '#67e8f9',
-            fontSize: '16px',
-            margin: '0 0 12px 0'
-          }}>
-            📚 Descripción del Curso
-          </h3>
-          <p style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', margin: 0 }}>
-            Este curso proporciona una introducción completa a los conceptos fundamentales de {course.label.toLowerCase()}. 
-            Los estudiantes desarrollarán habilidades prácticas y teóricas necesarias para 
-            el siguiente nivel de su formación académica en Ingeniería de Telecomunicaciones.
+        <div className={CARD}>
+          <h3 className={CARD_TITLE}>📚 Descripción del Curso</h3>
+          <p className="m-0 text-sm leading-relaxed text-ink">
+            Este curso proporciona una introducción completa a los conceptos fundamentales de {course.label.toLowerCase()}.
+            Los estudiantes desarrollarán habilidades prácticas y teóricas necesarias para
+            el siguiente nivel de su formación académica en Ingeniería de las Telecomunicaciones.
           </p>
         </div>
 
-        {/* Calificación de Dificultad */}
-        {currentScheduleData && currentScheduleData.difficulty && (
-          <div style={{ 
-            padding: '16px', 
-            borderRadius: '12px', 
-            marginBottom: '24px', 
-            background: 'rgba(30, 41, 59, 0.6)', 
-            backdropFilter: 'blur(10px)' 
-          }}>
-            <h3 style={{ 
-              fontWeight: '600', 
-              marginBottom: '12px', 
-              color: '#67e8f9',
-              fontSize: '16px',
-              margin: '0 0 12px 0'
-            }}>
-              ⭐ Dificultad del Curso
-            </h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              {[1, 2, 3, 4, 5].map(star => (
-                <span 
-                  key={star} 
-                  style={{
-                    fontSize: '20px',
-                    cursor: canInteract ? 'pointer' : 'default',
-                    color: star <= Math.round(currentScheduleData.difficulty) ? '#fbbf24' : '#64748b',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onClick={() => handleRatingClick(star)}
-                >
-                  {star <= Math.round(currentScheduleData.difficulty) ? '★' : '☆'}
-                </span>
-              ))}
-              <span style={{ fontSize: '14px', color: '#94a3b8', marginLeft: '8px' }}>
-                ({currentScheduleData.difficulty}/5.0 - {currentScheduleData.ratings || 0} valoraciones)
+        {/* Calificación */}
+        <div className={CARD}>
+          <h3 className={CARD_TITLE}>⭐ Calificación del Curso</h3>
+          <div className="mb-3 flex items-center gap-2">
+            {[1, 2, 3, 4, 5].map(star => (
+              <span
+                key={star}
+                onClick={() => handleRatingClick(star)}
+                className={`text-xl ${canInteract ? 'cursor-pointer' : 'cursor-default'} ${
+                  star <= Math.round(ratingSummary?.average || 0) ? 'text-warn' : 'text-line'
+                }`}
+              >
+                {star <= Math.round(ratingSummary?.average || 0) ? '★' : '☆'}
               </span>
-            </div>
-            {canInteract && newRating > 0 && (
-              <div style={{ fontSize: '12px', color: '#06b6d4' }}>
-                Tu calificación: {newRating}/5 ⭐
-              </div>
-            )}
+            ))}
+            <span className="ml-2 text-sm text-muted">
+              ({(ratingSummary?.average || 0).toFixed(1)}/5.0 - {ratingSummary?.count || 0} valoraciones)
+            </span>
           </div>
-        )}
-        
+          {canInteract && myRating > 0 && (
+            <div className="text-xs text-accent">Tu calificación: {myRating}/5 ⭐</div>
+          )}
+        </div>
+
         {/* Foro de Comentarios */}
-        <div style={{ 
-          padding: '16px', 
-          borderRadius: '12px', 
-          background: 'rgba(30, 41, 59, 0.6)', 
-          backdropFilter: 'blur(10px)' 
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ 
-              fontWeight: '600', 
-              color: '#67e8f9',
-              fontSize: '16px',
-              margin: 0
-            }}>
-              💬 Foro de Estudiantes
-            </h3>
-            
-            {/* Selector de ordenamiento */}
-            <select 
-              value={sortBy} 
-              onChange={(e) => setSortBy(e.target.value)}
-              style={{
-                padding: '4px 8px',
-                borderRadius: '6px',
-                background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
-                color: 'white',
-                fontSize: '12px',
-                outline: 'none'
-              }}
-            >
+        <div className={CARD}>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className={`${CARD_TITLE} mb-0`}>💬 Foro de Estudiantes</h3>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-md border border-line bg-bg px-2 py-1 text-xs text-ink outline-none focus:border-accent">
               <option value="recent">🕒 Más recientes</option>
               <option value="top_rated">⭐ Mejor valorados</option>
             </select>
           </div>
-          
-          {/* Lista de comentarios */}
-          <div style={{ 
-            marginBottom: '16px', 
-            maxHeight: '400px', 
-            overflowY: 'auto',
-            paddingRight: '4px'
-          }}>
+
+          <div className="mb-4 max-h-[400px] overflow-y-auto pr-1">
             {commentsLoading ? (
-              // ESTADO DE CARGA
-              <div style={{
-                textAlign: 'center',
-                padding: '32px',
-                color: '#94a3b8'
-              }}>
-                <div style={{
-                  width: '24px',
-                  height: '24px',
-                  border: '3px solid rgba(6, 182, 212, 0.3)',
-                  borderTopColor: '#06b6d4',
-                  borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite',
-                  margin: '0 auto 12px'
-                }} />
-                <p style={{ fontSize: '14px', margin: 0 }}>
-                  Cargando comentarios...
-                </p>
+              <div className="p-8 text-center text-muted">
+                <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-[3px] border-line border-t-accent" />
+                <p className="m-0 text-sm">Cargando comentarios...</p>
               </div>
             ) : comments.length > 0 ? (
-              // HAY COMENTARIOS
               comments.map(comment => renderComment(comment))
             ) : (
-              // NO HAY COMENTARIOS
-              <div style={{
-                textAlign: 'center',
-                padding: '32px',
-                color: '#94a3b8'
-              }}>
-                <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
-                <p style={{ fontSize: '14px', margin: 0 }}>
+              <div className="p-8 text-center text-muted">
+                <div className="mb-2 text-3xl">💬</div>
+                <p className="m-0 text-sm">
                   No hay comentarios para este horario aún.
                   {canInteract && ' ¡Sé el primero en comentar!'}
                 </p>
               </div>
             )}
           </div>
-          
-          {/* Agregar nuevo comentario */}
-          <div style={{ borderTop: '1px solid #64748b', paddingTop: '16px' }}>
-            <textarea 
+
+          <div className="border-t border-line pt-4">
+            <textarea
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              style={{
-                width: '100%',
-                borderRadius: '8px',
-                padding: '12px',
-                fontSize: '14px',
-                color: 'white',
-                background: canInteract ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'rgba(71, 85, 105, 0.5)',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
-                cursor: canInteract ? 'text' : 'not-allowed',
-                resize: 'vertical',
-                outline: 'none',
-                boxSizing: 'border-box',
-                minHeight: '80px'
-              }}
-              placeholder={canInteract 
-                ? "Comparte tu experiencia o haz una pregunta..."
-                : "Debes aprobar el curso para comentar..."
-              }
+              className={`min-h-[80px] w-full resize-y rounded-lg border border-line px-3 py-3 text-sm text-ink outline-none focus:border-accent ${
+                canInteract ? 'bg-bg' : 'cursor-not-allowed bg-line/40'
+              }`}
+              placeholder={canInteract ? 'Comparte tu experiencia o haz una pregunta...' : 'Debes aprobar el curso para comentar...'}
               disabled={!canInteract}
             />
-            
-            <button 
+
+            <button
               onClick={handleAddComment}
-              style={{
-                width: '100%',
-                marginTop: '12px',
-                fontWeight: '600',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: canInteract && newComment.trim() ? 'pointer' : 'not-allowed',
-                background: canInteract && newComment.trim() 
-                  ? 'linear-gradient(to right, #06b6d4, #3b82f6)' 
-                  : '#64748b',
-                color: canInteract && newComment.trim() ? 'white' : '#94a3b8',
-                transition: 'all 0.2s ease',
-                fontSize: '14px'
-              }}
               disabled={!canInteract || !newComment.trim()}
+              className={`mt-3 w-full rounded-lg px-4 py-3 text-sm font-semibold transition-opacity ${
+                canInteract && newComment.trim()
+                  ? 'cursor-pointer bg-accent text-ink-on-accent hover:opacity-90'
+                  : 'cursor-not-allowed bg-muted text-ink-on-accent/80'
+              }`}
             >
               {canInteract ? '📝 Publicar Comentario' : '🔒 Requiere Aprobación del Curso'}
             </button>
@@ -1238,6 +648,6 @@ const CourseDetailPanel = ({
       </div>
     </div>
   );
-}
+};
 
 export default CourseDetailPanel;

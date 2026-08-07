@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import org.example.semestresservice.Model.Curso;
 import org.example.semestresservice.Model.Usuario;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -15,26 +16,28 @@ public class Horario {
     @Column(nullable = false)
     private Long id;
 
-    @Column(nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "id_semestre", nullable = false)
     private Semestre semestre;
 
-    @Column(nullable = false)
+    @Column(name = "id_curso", nullable = false)
+    private Long idCurso;
+
+    @Transient
     private Curso curso;
 
     @NotBlank(message = "El campo horario no debe estar vacío.")
     @Column(nullable = false, length = 10)
     private String horario;
 
-    @OneToMany(cascade = CascadeType.ALL, fetch =  FetchType.LAZY)
-    @JoinColumn(name = "id_horario", nullable = false)
-    private List<HorarioAlumno> horarioAlumnos;
+    @OneToMany(mappedBy = "horario", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<HorarioAlumno> horarioAlumnos = new ArrayList<>();
 
     @Transient
     private List<Usuario> alumnos;
 
-    @OneToMany(cascade = CascadeType.ALL, fetch =  FetchType.LAZY)
-    @JoinColumn(name = "id_horario", nullable = false)
-    private List<HorarioProfesor> horarioProfesores;
+    @OneToMany(mappedBy = "horario", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<HorarioProfesor> horarioProfesores = new ArrayList<>();
 
     @Transient
     private List<Usuario> profesores;
@@ -53,6 +56,14 @@ public class Horario {
 
     public void setSemestre(Semestre semestre) {
         this.semestre = semestre;
+    }
+
+    public Long getIdCurso() {
+        return idCurso;
+    }
+
+    public void setIdCurso(Long idCurso) {
+        this.idCurso = idCurso;
     }
 
     public Curso getCurso() {

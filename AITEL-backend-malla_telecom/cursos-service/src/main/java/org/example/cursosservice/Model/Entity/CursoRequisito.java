@@ -18,6 +18,9 @@ public class CursoRequisito {
     @Column(length = 50, nullable = false)
     private String condicion;
 
+    @Column(name = "nota_minima")
+    private Integer notaMinima;
+
     public Long getId() {
         return id;
     }
@@ -40,5 +43,13 @@ public class CursoRequisito {
 
     public void setCondicion(String condicion) {
         this.condicion = condicion;
+    }
+
+    public Integer getNotaMinima() {
+        return notaMinima;
+    }
+
+    public void setNotaMinima(Integer notaMinima) {
+        this.notaMinima = notaMinima;
     }
 }

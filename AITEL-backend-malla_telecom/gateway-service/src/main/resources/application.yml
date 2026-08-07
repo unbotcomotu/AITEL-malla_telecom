@@ -1,0 +1,62 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      server:
+        webflux:
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOrigins: "http://localhost:5173"
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders: "*"
+                allowCredentials: true
+          routes:
+            # Mas especifico primero: comentarios y calificaciones sobre un curso
+            - id: comentarios-service
+              uri: ${COMENTARIOS_SERVICE_URL:http://localhost:8004}
+              predicates:
+                - Path=/api/courses/*/comments/**,/api/courses/*/ratings/**,/api/courses/*/ratings
+              filters:
+                - StripPrefix=1
+
+            # Horarios, matricula e historial del alumno viven en semestres-service
+            - id: semestres-service
+              uri: ${SEMESTRES_SERVICE_URL:http://localhost:8003}
+              predicates:
+                - Path=/api/courses/*/schedules,/api/courses/*/schedule-info,/api/courses/*/cycles/**,/api/courses/available,/api/student/**,/api/system/**,/api/semesters/**
+              filters:
+                - StripPrefix=1
+
+            # Resto de recursos de curso, categorias, catalogo, malla curricular y buscador
+            - id: cursos-service
+              uri: ${CURSOS_SERVICE_URL:http://localhost:8002}
+              predicates:
+                - Path=/api/courses/**,/api/categories/**,/api/subcategories/**,/api/catalog/**,/api/curriculum/**,/api/search,/api/search/**,/api/dashboard/**
+              filters:
+                - StripPrefix=1
+
+            # Autenticacion y gestion de usuarios/profesores
+            - id: usuarios-service
+              uri: ${USUARIOS_SERVICE_URL:http://localhost:8001}
+              predicates:
+                - Path=/api/auth/**,/api/professors/**
+              filters:
+                - StripPrefix=1
+
+jwt:
+  secret: ${JWT_SECRET:aitel-dev-secret-key-change-in-production-0123456789abcdef}
+
+logging:
+  level:
+    org.springframework.cloud.gateway: info

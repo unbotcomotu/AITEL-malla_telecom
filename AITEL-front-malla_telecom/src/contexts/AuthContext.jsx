@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // 🔧 MODO DESARROLLO - Usuario mock
-  const DEV_MODE = true; // Cambiar a false en producción
+  const DEV_MODE = false; // Cambiar a true para usar un usuario simulado sin backend
   
   useEffect(() => {
     const checkAuth = async () => {

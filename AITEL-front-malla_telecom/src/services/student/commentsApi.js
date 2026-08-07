@@ -1,10 +1,20 @@
 // services/student/commentsApi.js
+
+// El selector de horario del front usa 'general' como valor por defecto
+// (no un id real). El backend espera un Long o directamente nada.
+const toScheduleId = (scheduleId) => {
+  const n = Number(scheduleId);
+  return Number.isFinite(n) ? n : null;
+};
+
 export const CommentsApi = {
   // Obtener comentarios por curso, ciclo y horario
   async getComments(courseId, cycle, scheduleId) {
-    const response = await fetch(
-      `/api/courses/${courseId}/comments?cycle=${cycle}&schedule=${scheduleId}`
-    );
+    const schedule = toScheduleId(scheduleId);
+    const params = new URLSearchParams({ cycle });
+    if (schedule !== null) params.set('schedule', schedule);
+
+    const response = await fetch(`/api/courses/${courseId}/comments?${params.toString()}`);
     if (!response.ok) {
       throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
@@ -16,7 +26,7 @@ export const CommentsApi = {
     const response = await fetch(`/api/courses/${courseId}/comments`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ cycle, scheduleId, ...commentData })
+      body: JSON.stringify({ cycle, scheduleId: toScheduleId(scheduleId), ...commentData })
     });
     if (!response.ok) {
       throw new Error(`Error ${response.status}: ${response.statusText}`);

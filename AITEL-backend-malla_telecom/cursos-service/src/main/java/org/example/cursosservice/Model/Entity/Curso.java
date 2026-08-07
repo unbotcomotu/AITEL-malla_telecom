@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +31,9 @@ public class Curso {
     @Column(nullable = false, length = 10)
     private String codigo;
 
+    @Column(columnDefinition = "TEXT")
+    private String descripcion;
+
     @Min(0)
     @Max(10)
     @Column(nullable = false)
@@ -44,16 +46,30 @@ public class Curso {
     @Column(nullable = false)
     private LocalDateTime fechaCreacion;
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @Column(nullable = false)
+    private Boolean oculta = false;
+
+    @Column(nullable = false)
+    private Boolean congelada = false;
+
+    @Min(0)
+    @Column(name = "horas_teoria", nullable = false)
+    private Integer horasTeoria = 0;
+
+    @Min(0)
+    @Column(name = "horas_practica", nullable = false)
+    private Integer horasPractica = 0;
+
+    @Min(0)
+    @Column(name = "horas_laboratorio", nullable = false)
+    private Integer horasLaboratorio = 0;
+
+    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "id_curso")
     private List<CursoRequisito> cursoRequisitos;
 
-    @Transient
-    private List<Curso> cursos;
-
     public Curso() {
         cursoRequisitos = new ArrayList<>();
-        cursos = new ArrayList<>();
     }
 
     public Long getId() {
@@ -88,6 +104,14 @@ public class Curso {
         this.codigo = codigo;
     }
 
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
+    }
+
     public Long getCiclo() {
         return ciclo;
     }
@@ -112,19 +136,51 @@ public class Curso {
         this.fechaCreacion = fechaCreacion;
     }
 
+    public Boolean getOculta() {
+        return oculta;
+    }
+
+    public void setOculta(Boolean oculta) {
+        this.oculta = oculta;
+    }
+
+    public Boolean getCongelada() {
+        return congelada;
+    }
+
+    public void setCongelada(Boolean congelada) {
+        this.congelada = congelada;
+    }
+
+    public Integer getHorasTeoria() {
+        return horasTeoria;
+    }
+
+    public void setHorasTeoria(Integer horasTeoria) {
+        this.horasTeoria = horasTeoria;
+    }
+
+    public Integer getHorasPractica() {
+        return horasPractica;
+    }
+
+    public void setHorasPractica(Integer horasPractica) {
+        this.horasPractica = horasPractica;
+    }
+
+    public Integer getHorasLaboratorio() {
+        return horasLaboratorio;
+    }
+
+    public void setHorasLaboratorio(Integer horasLaboratorio) {
+        this.horasLaboratorio = horasLaboratorio;
+    }
+
     public List<CursoRequisito> getCursoRequisitos() {
         return cursoRequisitos;
     }
 
     public void setCursoRequisitos(List<CursoRequisito> cursoRequisitos) {
         this.cursoRequisitos = cursoRequisitos;
-    }
-
-    public List<Curso> getCursos() {
-        return cursos;
-    }
-
-    public void setCursos(List<Curso> cursos) {
-        this.cursos = cursos;
     }
 }

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-
 import { ProfessorApi } from '../../services/admin/professorApi';
+
+const INPUT_CLASS = 'w-full rounded-lg border bg-bg px-4 py-3 text-sm text-ink outline-none transition-colors focus:border-good disabled:cursor-not-allowed disabled:opacity-60';
+const LABEL_CLASS = 'mb-2 block text-sm font-medium text-ink';
+
 const ProfessorManagement = () => {
   const [professors, setProfessors] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -21,11 +24,9 @@ const ProfessorManagement = () => {
     }
   };
 
-
   useEffect(() => {
     loadProfessors();
   }, []);
-
 
   const handleCreateProfessor = async (professorData) => {
     setLoading(true);
@@ -46,7 +47,7 @@ const ProfessorManagement = () => {
     setError(null);
     try {
       const updatedProfessor = await ProfessorApi.updateProfessor(id, professorData);
-      setProfessors(professors.map(p => p.id === id ? updatedProfessor : p));
+      setProfessors(professors.map(p => (p.id === id ? updatedProfessor : p)));
       setShowModal(false);
       setEditingProfessor(null);
     } catch (err) {
@@ -58,17 +59,15 @@ const ProfessorManagement = () => {
 
   const handleSaveProfessor = async (professorData) => {
     if (editingProfessor) {
-      // Actualizar profesor existente
       await handleUpdateProfessor(editingProfessor.id, professorData);
     } else {
-      // Crear nuevo profesor
       await handleCreateProfessor(professorData);
     }
   };
 
   const handleDeleteProfessor = async (id) => {
     if (!window.confirm('¿Estás seguro de eliminar este profesor?')) return;
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -80,182 +79,70 @@ const ProfessorManagement = () => {
       setLoading(false);
     }
   };
+
   return (
-    <div style={{
-      padding: '24px',
-      color: 'white',
-      minHeight: '100vh'
-    }}>
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto'
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '32px'
-        }}>
-          <h1 style={{
-            fontSize: '32px',
-            fontWeight: 'bold',
-            background: 'linear-gradient(to right, #10b981, #059669)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            margin: 0
-          }}>
-            👨‍🏫 Gestión de Profesores
-          </h1>
-          {error && (
-            <div style={{
-              marginBottom: '20px',
-              padding: '16px',
-              background: 'rgba(239, 68, 68, 0.2)',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              borderRadius: '12px',
-              color: '#fca5a5',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <span>⚠️ {error}</span>
-              <button onClick={() => setError(null)} style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#fca5a5',
-                cursor: 'pointer',
-                fontSize: '18px'
-              }}>✕</button>
-            </div>
-          )}
-          <button 
-            onClick={() => {
-              setEditingProfessor(null);
-              setShowModal(true);
-            }}
+    <div className="min-h-screen p-6 text-ink">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <h1 className="m-0 font-display text-3xl font-bold tracking-tight text-good">👨‍🏫 Gestión de Profesores</h1>
+
+          <button
+            onClick={() => { setEditingProfessor(null); setShowModal(true); }}
             disabled={loading}
-            style={{
-            
-              padding: '12px 24px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: '600',
-              opacity: loading ? '0.6' : '1',
-              cursor: loading ? 'not-allowed' : 'pointer'
-          }}>
+            className="rounded-lg bg-good px-6 py-3 text-base font-semibold text-ink-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
             + Agregar Profesor
           </button>
         </div>
+
+        {error && (
+          <div className="mb-5 flex items-center justify-between rounded-xl border border-bad/40 bg-bad/10 p-4 text-bad">
+            <span>⚠️ {error}</span>
+            <button onClick={() => setError(null)} className="text-lg text-bad">✕</button>
+          </div>
+        )}
+
         {loading && (
-          <div style={{
-            marginBottom: '20px',
-            padding: '12px 16px',
-            background: 'rgba(6, 182, 212, 0.2)',
-            border: '1px solid rgba(6, 182, 212, 0.4)',
-            borderRadius: '12px',
-            color: '#67e8f9',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <div style={{
-              width: '20px',
-              height: '20px',
-              border: '3px solid rgba(6, 182, 212, 0.3)',
-              borderTopColor: '#06b6d4',
-              borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite'
-            }} />
+          <div className="mb-5 flex items-center gap-3 rounded-xl border border-accent/40 bg-accent/10 p-3 text-accent">
+            <div className="h-5 w-5 animate-spin rounded-full border-[3px] border-accent/30 border-t-accent" />
             <span>Cargando profesores...</span>
           </div>
         )}
-        {/* Tabla de profesores */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: '16px',
-          border: '1px solid rgba(148, 163, 184, 0.3)',
-          overflow: 'hidden'
-        }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '2fr 2fr 1.5fr 1fr 1fr',
-            gap: '16px',
-            padding: '20px',
-            background: 'rgba(30, 41, 59, 0.6)',
-            borderBottom: '1px solid rgba(148, 163, 184, 0.3)',
-            fontWeight: '600',
-            color: '#67e8f9'
-          }}>
+
+        {/* Tabla */}
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+          <div
+            className="grid gap-4 border-b border-line bg-surface-2 p-5 font-semibold text-ink"
+            style={{ gridTemplateColumns: '2fr 2fr 1fr 1fr' }}
+          >
             <div>Nombre</div>
             <div>Email</div>
-            <div>Especialización</div>
-            <div>Cursos</div>
+            <div>Código</div>
             <div>Acciones</div>
           </div>
-          
+
           {professors.map((professor) => (
-            <div key={professor.id} style={{
-              display: 'grid',
-              gridTemplateColumns: '2fr 2fr 1.5fr 1fr 1fr',
-              gap: '16px',
-              padding: '20px',
-              borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
-              transition: 'background 0.2s ease'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            <div
+              key={professor.id}
+              className="grid items-center gap-4 border-b border-line p-5 transition-colors last:border-b-0 hover:bg-good/5"
+              style={{ gridTemplateColumns: '2fr 2fr 1fr 1fr' }}
             >
-              <div style={{ color: '#cbd5e1' }}>{professor.name}</div>
-              <div style={{ color: '#94a3b8' }}>{professor.email}</div>
-              <div style={{ color: '#94a3b8' }}>{professor.specialization}</div>
-              <div style={{ color: '#94a3b8' }}>{professor.courses}</div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: '#06b6d4',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '12px'
-                }}>
-                  Ver
-                </button>
-                <button 
-                  onClick={() => {
-                    setEditingProfessor(professor);
-                    setShowModal(true);
-                  }}
+              <div className="text-ink">{professor.fullName}</div>
+              <div className="text-muted">{professor.email}</div>
+              <div className="text-muted">{professor.studentCode || '—'}</div>
+              <div className="flex gap-2">
+                <button className="rounded-md bg-accent px-3 py-1.5 text-xs text-ink-on-accent">Ver</button>
+                <button
+                  onClick={() => { setEditingProfessor(professor); setShowModal(true); }}
                   disabled={loading}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    background: '#10b981',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}>
+                  className="rounded-md bg-good px-3 py-1.5 text-xs text-ink-on-accent disabled:opacity-60"
+                >
                   Editar
                 </button>
-                <button 
+                <button
                   onClick={() => handleDeleteProfessor(professor.id)}
                   disabled={loading}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    background: '#ef4444',
-                    color: 'white',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    opacity: loading ? '0.5' : '1'
-                  }}
+                  className="rounded-md bg-bad px-3 py-1.5 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Eliminar
                 </button>
@@ -264,71 +151,47 @@ const ProfessorManagement = () => {
           ))}
         </div>
       </div>
+
       <ProfessorModal
-          isOpen={showModal}
-          onClose={() => {
-            setShowModal(false);
-            setEditingProfessor(null);
-          }}
-          onSave={handleSaveProfessor}
-          professor={editingProfessor}
-          loading={loading}
-        />
+        isOpen={showModal}
+        onClose={() => { setShowModal(false); setEditingProfessor(null); }}
+        onSave={handleSaveProfessor}
+        professor={editingProfessor}
+        loading={loading}
+      />
     </div>
   );
 };
 
-
 const ProfessorModal = ({ isOpen, onClose, onSave, professor, loading }) => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    specialization: '',
-    phone: '',
-    department: ''
-  });
-
+  const [formData, setFormData] = useState({ nombres: '', apellidos: '', correo: '', codigo: '' });
   const [formErrors, setFormErrors] = useState({});
 
-  // Cargar datos si estamos editando
   useEffect(() => {
     if (professor) {
+      const [nombres = '', ...resto] = (professor.fullName || '').split(' ');
       setFormData({
-        name: professor.name || '',
-        email: professor.email || '',
-        specialization: professor.specialization || '',
-        phone: professor.phone || '',
-        department: professor.department || ''
+        nombres,
+        apellidos: resto.join(' '),
+        correo: professor.email || '',
+        codigo: professor.studentCode || ''
       });
     } else {
-      // Resetear form si es nuevo
-      setFormData({
-        name: '',
-        email: '',
-        specialization: '',
-        phone: '',
-        department: ''
-      });
+      setFormData({ nombres: '', apellidos: '', correo: '', codigo: '' });
     }
     setFormErrors({});
   }, [professor, isOpen]);
 
   const validateForm = () => {
     const errors = {};
-
-    if (!formData.name.trim()) {
-      errors.name = 'El nombre es requerido';
+    if (!formData.nombres.trim()) errors.nombres = 'El nombre es requerido';
+    if (!formData.apellidos.trim()) errors.apellidos = 'El apellido es requerido';
+    if (!formData.correo.trim()) {
+      errors.correo = 'El correo es requerido';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.correo)) {
+      errors.correo = 'Correo inválido';
     }
-
-    if (!formData.email.trim()) {
-      errors.email = 'El email es requerido';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Email inválido';
-    }
-
-    if (!formData.specialization.trim()) {
-      errors.specialization = 'La especialización es requerida';
-    }
+    if (!formData.codigo.trim()) errors.codigo = 'El código es requerido';
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -336,372 +199,101 @@ const ProfessorModal = ({ isOpen, onClose, onSave, professor, loading }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    if (validateForm()) {
-      onSave(formData);
-    }
+    if (validateForm()) onSave(formData);
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Limpiar error del campo al escribir
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (formErrors[name]) {
-      setFormErrors(prev => ({
-        ...prev,
-        [name]: null
-      }));
+      setFormErrors(prev => ({ ...prev, [name]: null }));
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.7)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '20px',
-      backdropFilter: 'blur(4px)'
-    }}
-    onClick={onClose}
+    <div
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm"
+      onClick={onClose}
     >
-      <div 
-        style={{
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)',
-          borderRadius: '20px',
-          padding: '32px',
-          maxWidth: '600px',
-          width: '100%',
-          border: '1px solid rgba(148, 163, 184, 0.3)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-          maxHeight: '90vh',
-          overflowY: 'auto'
-        }}
+      <div
+        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-line bg-surface p-8 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '24px'
-        }}>
-          <h2 style={{
-            margin: 0,
-            fontSize: '24px',
-            fontWeight: 'bold',
-            background: 'linear-gradient(to right, #10b981, #059669)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
-          }}>
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="m-0 font-display text-2xl font-bold text-good">
             {professor ? '✏️ Editar Profesor' : '➕ Agregar Profesor'}
           </h2>
-          
           <button
             onClick={onClose}
             disabled={loading}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#94a3b8',
-              fontSize: '24px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              padding: '4px',
-              transition: 'color 0.2s ease',
-              opacity: loading ? '0.5' : '1'
-            }}
-            onMouseEnter={(e) => !loading && (e.currentTarget.style.color = '#ef4444')}
-            onMouseLeave={(e) => !loading && (e.currentTarget.style.color = '#94a3b8')}
+            className="text-2xl text-muted transition-colors hover:text-bad disabled:cursor-not-allowed disabled:opacity-50"
           >
             ✕
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit}>
-          {/* Nombre completo */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              color: '#cbd5e1',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}>
-              Nombre Completo *
-            </label>
+          <div className="mb-5">
+            <label className={LABEL_CLASS}>Nombres *</label>
             <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              disabled={loading}
-              placeholder="Ej: Dr. Carlos López"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: formErrors.name ? '1px solid #ef4444' : '1px solid rgba(148, 163, 184, 0.3)',
-                background: 'rgba(30, 41, 59, 0.5)',
-                color: 'white',
-                fontSize: '14px',
-                outline: 'none',
-                transition: 'border 0.2s ease',
-                opacity: loading ? '0.6' : '1',
-                cursor: loading ? 'not-allowed' : 'text'
-              }}
-              onFocus={(e) => !formErrors.name && (e.currentTarget.style.border = '1px solid #10b981')}
-              onBlur={(e) => !formErrors.name && (e.currentTarget.style.border = '1px solid rgba(148, 163, 184, 0.3)')}
+              type="text" name="nombres" value={formData.nombres} onChange={handleChange} disabled={loading}
+              placeholder="Ej: Carlos"
+              className={`${INPUT_CLASS} ${formErrors.nombres ? 'border-bad' : 'border-line'}`}
             />
-            {formErrors.name && (
-              <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>
-                {formErrors.name}
-              </span>
-            )}
+            {formErrors.nombres && <span className="mt-1 block text-xs text-bad">{formErrors.nombres}</span>}
           </div>
 
-          {/* Email */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              color: '#cbd5e1',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}>
-              Email Institucional *
-            </label>
+          <div className="mb-5">
+            <label className={LABEL_CLASS}>Apellidos *</label>
             <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              disabled={loading}
+              type="text" name="apellidos" value={formData.apellidos} onChange={handleChange} disabled={loading}
+              placeholder="Ej: López"
+              className={`${INPUT_CLASS} ${formErrors.apellidos ? 'border-bad' : 'border-line'}`}
+            />
+            {formErrors.apellidos && <span className="mt-1 block text-xs text-bad">{formErrors.apellidos}</span>}
+          </div>
+
+          <div className="mb-5">
+            <label className={LABEL_CLASS}>Correo Institucional *</label>
+            <input
+              type="email" name="correo" value={formData.correo} onChange={handleChange} disabled={loading}
               placeholder="ejemplo@pucp.edu.pe"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: formErrors.email ? '1px solid #ef4444' : '1px solid rgba(148, 163, 184, 0.3)',
-                background: 'rgba(30, 41, 59, 0.5)',
-                color: 'white',
-                fontSize: '14px',
-                outline: 'none',
-                transition: 'border 0.2s ease',
-                opacity: loading ? '0.6' : '1',
-                cursor: loading ? 'not-allowed' : 'text'
-              }}
-              onFocus={(e) => !formErrors.email && (e.currentTarget.style.border = '1px solid #10b981')}
-              onBlur={(e) => !formErrors.email && (e.currentTarget.style.border = '1px solid rgba(148, 163, 184, 0.3)')}
+              className={`${INPUT_CLASS} ${formErrors.correo ? 'border-bad' : 'border-line'}`}
             />
-            {formErrors.email && (
-              <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>
-                {formErrors.email}
-              </span>
-            )}
+            {formErrors.correo && <span className="mt-1 block text-xs text-bad">{formErrors.correo}</span>}
           </div>
 
-          {/* Especialización */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              color: '#cbd5e1',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}>
-              Especialización *
-            </label>
+          <div className="mb-6">
+            <label className={LABEL_CLASS}>Código *</label>
             <input
-              type="text"
-              name="specialization"
-              value={formData.specialization}
-              onChange={handleChange}
-              disabled={loading}
-              placeholder="Ej: Matemáticas, Física, Química"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: formErrors.specialization ? '1px solid #ef4444' : '1px solid rgba(148, 163, 184, 0.3)',
-                background: 'rgba(30, 41, 59, 0.5)',
-                color: 'white',
-                fontSize: '14px',
-                outline: 'none',
-                transition: 'border 0.2s ease',
-                opacity: loading ? '0.6' : '1',
-                cursor: loading ? 'not-allowed' : 'text'
-              }}
-              onFocus={(e) => !formErrors.specialization && (e.currentTarget.style.border = '1px solid #10b981')}
-              onBlur={(e) => !formErrors.specialization && (e.currentTarget.style.border = '1px solid rgba(148, 163, 184, 0.3)')}
+              type="text" name="codigo" value={formData.codigo} onChange={handleChange} disabled={loading}
+              placeholder="Ej: PROF001"
+              className={`${INPUT_CLASS} ${formErrors.codigo ? 'border-bad' : 'border-line'}`}
             />
-            {formErrors.specialization && (
-              <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>
-                {formErrors.specialization}
-              </span>
-            )}
+            {formErrors.codigo && <span className="mt-1 block text-xs text-bad">{formErrors.codigo}</span>}
           </div>
 
-          {/* Teléfono (opcional) */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              color: '#cbd5e1',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}>
-              Teléfono <span style={{ color: '#64748b' }}>(opcional)</span>
-            </label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              disabled={loading}
-              placeholder="Ej: +51 999 999 999"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
-                background: 'rgba(30, 41, 59, 0.5)',
-                color: 'white',
-                fontSize: '14px',
-                outline: 'none',
-                transition: 'border 0.2s ease',
-                opacity: loading ? '0.6' : '1',
-                cursor: loading ? 'not-allowed' : 'text'
-              }}
-              onFocus={(e) => e.currentTarget.style.border = '1px solid #10b981'}
-              onBlur={(e) => e.currentTarget.style.border = '1px solid rgba(148, 163, 184, 0.3)'}
-            />
-          </div>
-
-          {/* Departamento (opcional) */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              color: '#cbd5e1',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}>
-              Departamento <span style={{ color: '#64748b' }}>(opcional)</span>
-            </label>
-            <input
-              type="text"
-              name="department"
-              value={formData.department}
-              onChange={handleChange}
-              disabled={loading}
-              placeholder="Ej: Ciencias"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
-                background: 'rgba(30, 41, 59, 0.5)',
-                color: 'white',
-                fontSize: '14px',
-                outline: 'none',
-                transition: 'border 0.2s ease',
-                opacity: loading ? '0.6' : '1',
-                cursor: loading ? 'not-allowed' : 'text'
-              }}
-              onFocus={(e) => e.currentTarget.style.border = '1px solid #10b981'}
-              onBlur={(e) => e.currentTarget.style.border = '1px solid rgba(148, 163, 184, 0.3)'}
-            />
-          </div>
-
-          {/* Botones */}
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end'
-          }}>
+          <div className="flex justify-end gap-3">
             <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              style={{
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
-                background: 'transparent',
-                color: '#cbd5e1',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: '500',
-                transition: 'all 0.2s ease',
-                opacity: loading ? '0.5' : '1'
-              }}
-              onMouseEnter={(e) => !loading && (e.currentTarget.style.background = 'rgba(148, 163, 184, 0.1)')}
-              onMouseLeave={(e) => !loading && (e.currentTarget.style.background = 'transparent')}
+              type="button" onClick={onClose} disabled={loading}
+              className="rounded-lg border border-line px-6 py-3 text-sm font-medium text-ink transition-colors hover:bg-bg disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancelar
             </button>
-            
             <button
-              type="submit"
-              disabled={loading}
-              style={{
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: 'none',
-                background: loading 
-                  ? 'rgba(16, 185, 129, 0.5)' 
-                  : 'linear-gradient(135deg, #10b981, #059669)',
-                color: 'white',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: '600',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseEnter={(e) => !loading && (e.currentTarget.style.transform = 'translateY(-1px)')}
-              onMouseLeave={(e) => !loading && (e.currentTarget.style.transform = 'translateY(0)')}
+              type="submit" disabled={loading}
+              className="flex items-center gap-2 rounded-lg bg-good px-6 py-3 text-sm font-semibold text-ink-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading && (
-                <div style={{
-                  width: '16px',
-                  height: '16px',
-                  border: '2px solid rgba(255, 255, 255, 0.3)',
-                  borderTopColor: 'white',
-                  borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite'
-                }} />
-              )}
+              {loading && <div className="h-4 w-4 animate-spin rounded-full border-2 border-ink-on-accent/30 border-t-ink-on-accent" />}
               {loading ? 'Guardando...' : professor ? 'Actualizar' : 'Crear'}
             </button>
           </div>
         </form>
-
-        {/* CSS para animación */}
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
       </div>
     </div>
   );
 };
-
-
 
 export default ProfessorManagement;

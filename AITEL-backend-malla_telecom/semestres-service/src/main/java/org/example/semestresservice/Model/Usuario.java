@@ -1,13 +1,16 @@
 package org.example.semestresservice.Model;
 
+/**
+ * DTO que refleja la forma real del JSON que expone usuarios-service
+ * (UsuarioResponse). Se llena via Feign, nunca se persiste.
+ */
 public class Usuario {
     private Long id;
-    private String nombreRol;
-    private String nombres;
-    private String apellidos;
-    private String correo;
-    private String codigo;
-    private Boolean estado;
+    private String email;
+    private String fullName;
+    private String studentCode;
+    private String role;
+    private boolean isFirstLogin;
 
     public Long getId() {
         return id;
@@ -17,51 +20,43 @@ public class Usuario {
         this.id = id;
     }
 
-    public String getNombreRol() {
-        return nombreRol;
+    public String getEmail() {
+        return email;
     }
 
-    public void setNombreRol(String nombreRol) {
-        this.nombreRol = nombreRol;
+    public void setEmail(String email) {
+        this.email = email;
     }
 
-    public String getNombres() {
-        return nombres;
+    public String getFullName() {
+        return fullName;
     }
 
-    public void setNombres(String nombres) {
-        this.nombres = nombres;
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
     }
 
-    public String getApellidos() {
-        return apellidos;
+    public String getStudentCode() {
+        return studentCode;
     }
 
-    public void setApellidos(String apellidos) {
-        this.apellidos = apellidos;
+    public void setStudentCode(String studentCode) {
+        this.studentCode = studentCode;
     }
 
-    public String getCorreo() {
-        return correo;
+    public String getRole() {
+        return role;
     }
 
-    public void setCorreo(String correo) {
-        this.correo = correo;
+    public void setRole(String role) {
+        this.role = role;
     }
 
-    public String getCodigo() {
-        return codigo;
+    public boolean isFirstLogin() {
+        return isFirstLogin;
     }
 
-    public void setCodigo(String codigo) {
-        this.codigo = codigo;
-    }
-
-    public Boolean getEstado() {
-        return estado;
-    }
-
-    public void setEstado(Boolean estado) {
-        this.estado = estado;
+    public void setIsFirstLogin(boolean firstLogin) {
+        isFirstLogin = firstLogin;
     }
 }

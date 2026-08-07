@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 // Importar componentes de autenticación
 import AuthView from './components/auth/AuthView';
@@ -18,6 +19,7 @@ import CourseCatalogView from './components/student/catalog/CourseCatalogView';
 import AdminDashboard from './components/admin/AdminDashboard';
 import ProfessorManagement from './components/admin/ProfessorManagement';
 import CourseAdminSystem from './components/admin/CourseAdminSystem';
+import SemesterManagement from './components/admin/SemesterManagement';
 
 // Importar los nuevos componentes del sistema de administración
 import CategoriesTab from './components/admin/categories/CategoriesTab';
@@ -30,12 +32,10 @@ import CourseScheduleManager from './components/admin/courses/CourseScheduleMana
 // Componente principal
 function App() {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <Router>
-        <div style={{ 
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          minHeight: '100vh'
-        }}>
+        <div style={{ minHeight: '100vh' }}>
           <Routes>
             {/* Rutas públicas */}
             <Route path="/auth" element={<AuthView />} />
@@ -58,6 +58,7 @@ function App() {
               {/* Rutas de administrador principales */}
               <Route path="admin" element={<AdminDashboard />} />
               <Route path="admin/professors" element={<ProfessorManagement />} />
+              <Route path="admin/semesters" element={<SemesterManagement />} />
               
               {/* Sistema de administración de cursos completo */}
               <Route path="admin/system" element={<CourseAdminSystem />} />
@@ -78,6 +79,7 @@ function App() {
         </div>
       </Router>
     </AuthProvider>
+    </ThemeProvider>
   );
 }
 

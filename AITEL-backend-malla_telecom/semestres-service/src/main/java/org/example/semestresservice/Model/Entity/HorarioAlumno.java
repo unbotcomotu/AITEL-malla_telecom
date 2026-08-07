@@ -12,19 +12,23 @@ public class HorarioAlumno {
     @Column(nullable = false)
     private Long id;
 
-    @Column(nullable = false)
-    private Long id_alumno;
+    @ManyToOne
+    @JoinColumn(name = "id_horario", nullable = false)
+    private Horario horario;
 
-    @Column(nullable = false)
+    @Column(name = "id_alumno", nullable = false)
+    private Long idAlumno;
+
     @Max(20)
     @Min(0)
+    @Column(name = "nota_final")
     private Long notaFinal;
 
     @Column(nullable = false)
-    private Boolean tieneExcepcion;
+    private Boolean tieneExcepcion = false;
 
     @Column(nullable = false)
-    private Boolean aprobado;
+    private Boolean aprobado = false;
 
     public Long getId() {
         return id;
@@ -34,12 +38,20 @@ public class HorarioAlumno {
         this.id = id;
     }
 
-    public Long getId_alumno() {
-        return id_alumno;
+    public Horario getHorario() {
+        return horario;
     }
 
-    public void setId_alumno(Long id_alumno) {
-        this.id_alumno = id_alumno;
+    public void setHorario(Horario horario) {
+        this.horario = horario;
+    }
+
+    public Long getIdAlumno() {
+        return idAlumno;
+    }
+
+    public void setIdAlumno(Long idAlumno) {
+        this.idAlumno = idAlumno;
     }
 
     public Long getNotaFinal() {

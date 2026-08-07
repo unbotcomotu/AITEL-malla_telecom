@@ -2,8 +2,10 @@ package org.example.comentariosservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication
+@EnableFeignClients
 public class ComentariosServiceApplication {
 
 	public static void main(String[] args) {

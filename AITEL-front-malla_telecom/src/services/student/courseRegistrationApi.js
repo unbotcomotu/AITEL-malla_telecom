@@ -47,11 +47,19 @@ export const CourseRegistrationApi = {
     return response.json();
   },
 
-  async getAvailableCoursesForSemester(semester, previousSemesters) {
+  // Borrar todo el historial académico registrado, para reiniciar el registro desde cero
+  async resetAcademicHistory() {
+    const response = await fetch('/api/student/academic-history', {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+
+  async getAvailableCoursesForSemester(cycle) {
     const response = await fetch('/api/student/available-courses', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ semester, previousSemesters })
+      body: JSON.stringify({ cycle })
     });
     if (!response.ok) throw new Error(`Error ${response.status}`);
     return response.json();

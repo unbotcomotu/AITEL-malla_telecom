@@ -1,7 +1,106 @@
 /* Importar estilos de ReactFlow */
 @import 'reactflow/dist/style.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* @import (no los 3 @tailwind sueltos de v3) para que cargue tambien la
+   escala de diseño por defecto (spacing, radios, etc.) y no solo el motor
+   de utilidades: sin esto, utilidades como p-5, gap-4 o rounded-md no se
+   generaban porque no dependen de ningun token definido en @theme abajo. */
+@import "tailwindcss";
 
+/* =========================================================================
+   Sistema de temas — AITEL Malla
+   Cada tema es un conjunto autoconsistente de tokens (--t-*) escopeado por
+   [data-theme]. @theme (Tailwind v4) los registra como utilidades reales
+   (bg-surface, text-ink, border-line, rounded-lg, font-display...) que
+   preservan la indirección var(): cambiar data-theme en runtime recolorea
+   toda la app sin recompilar.
+   ========================================================================= */
+
+:root {
+  /* pila monoespaciada, compartida por los 3 temas (códigos de curso, datos) */
+  --t-mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, "Roboto Mono", monospace;
+}
+
+/* ---------- Señal: azul-celeste / blanco / negro, panel institucional ---------- */
+:root,
+[data-theme="senal"] {
+  --t-bg: #FFFFFF;
+  --t-surface: #EFF4F8;
+  --t-surface-2: #E4ECF2;
+  --t-line: #D7E2EA;
+  --t-ink: #0A1420;
+  --t-ink-on-accent: #FFFFFF;
+  --t-muted: #54697A;
+  --t-accent: #1979C3;
+  --t-accent-deep: #0B3B5C;
+  --t-good: #2E8B57;
+  --t-warn: #C97A1D;
+  --t-bad: #C0392B;
+  --t-radius: 12px;
+  --t-font-display: "Segoe UI Semibold", "Helvetica Neue", Arial, sans-serif;
+  --t-font-body: -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ---------- Bitácora: grafito-navy + ámbar fósforo, centro de operaciones ---------- */
+[data-theme="bitacora"] {
+  --t-bg: #12181F;
+  --t-surface: #1B2330;
+  --t-surface-2: #0D1218;
+  --t-line: #2C3746;
+  --t-ink: #EDF1F5;
+  --t-ink-on-accent: #12181F;
+  --t-muted: #8FA0B0;
+  --t-accent: #E8A94A;
+  --t-accent-deep: #C98B2E;
+  --t-good: #5FBF8F;
+  --t-warn: #E0863D;
+  --t-bad: #D9707A;
+  --t-radius: 6px;
+  --t-font-display: "Bahnschrift", "Segoe UI Semibold", "Helvetica Neue", Arial, sans-serif;
+  --t-font-body: -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ---------- Cuaderno: papel cuadriculado, tinta azul, sello de calificación ---------- */
+[data-theme="cuaderno"] {
+  --t-bg: #F5F6EF;
+  --t-surface: #FFFFFF;
+  --t-surface-2: #EDEFE3;
+  --t-line: #D9DBCB;
+  --t-ink: #20241E;
+  --t-ink-on-accent: #FFFFFF;
+  --t-muted: #666C5C;
+  --t-accent: #33538C;
+  --t-accent-deep: #26406D;
+  --t-good: #4C7A4E;
+  --t-warn: #B4802E;
+  --t-bad: #B23A34;
+  --t-radius: 3px;
+  --t-font-display: Iowan, "Palatino Linotype", Palatino, Georgia, "Noto Serif", serif;
+  --t-font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@theme {
+  --color-bg: var(--t-bg);
+  --color-surface: var(--t-surface);
+  --color-surface-2: var(--t-surface-2);
+  --color-line: var(--t-line);
+  --color-ink: var(--t-ink);
+  --color-ink-on-accent: var(--t-ink-on-accent);
+  --color-muted: var(--t-muted);
+  --color-accent: var(--t-accent);
+  --color-accent-deep: var(--t-accent-deep);
+  --color-good: var(--t-good);
+  --color-warn: var(--t-warn);
+  --color-bad: var(--t-bad);
+  --radius-lg: var(--t-radius);
+  --font-display: var(--t-font-display);
+  --font-body: var(--t-font-body);
+  --font-mono: var(--t-mono);
+}
+
+/* El color/tipografía de body se aplican como clases Tailwind en index.html
+   (bg-bg text-ink font-body): un var() en CSS escrito a mano aquí no se
+   mantiene reactivo al cambiar data-theme, las utilidades de Tailwind sí. */
+body {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}

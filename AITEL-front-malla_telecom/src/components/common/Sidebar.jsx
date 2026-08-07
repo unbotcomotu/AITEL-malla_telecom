@@ -8,11 +8,11 @@ const Sidebar = ({ isOpen, onClose, user, currentPath }) => {
     // Items para estudiantes
     ...(user?.role !== 'admin' ? [
       { path: '/curriculum', label: 'Malla Curricular', icon: '🗺️' },
-      { path: '/catalog', label: 'Catálogo de Cursos', icon: '📚' }, // ← NUEVO
-      { path: '/history', label: 'Historial Académico', icon: '📅' }, // ← NUEVO
+      { path: '/catalog', label: 'Catálogo de Cursos', icon: '📚' },
+      { path: '/history', label: 'Historial Académico', icon: '📅' },
       { path: '/onboarding', label: 'Configurar Cursos', icon: '⚙️' }
     ] : []),
-    
+
     // Items para administradores
     ...(user?.role === 'admin' ? [
       { path: '/admin', label: 'Panel Admin', icon: '👨‍💼' },
@@ -32,92 +32,45 @@ const Sidebar = ({ isOpen, onClose, user, currentPath }) => {
       {isOpen && (
         <div
           onClick={onClose}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            zIndex: 998
-          }}
+          className="fixed inset-0 z-[998] bg-black/50"
         />
       )}
-      
+
       {/* Sidebar */}
-      <div style={{
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        height: '100vh',
-        width: '280px',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
-        transform: `translateX(${isOpen ? '0' : '-100%'})`,
-        transition: 'transform 0.3s ease',
-        zIndex: 999,
-        borderRight: '1px solid rgba(148, 163, 184, 0.3)',
-        display: 'flex',
-        flexDirection: 'column',
-        color: 'white'
-      }}>
+      <div
+        className={`fixed left-0 top-0 z-[999] flex h-screen w-[280px] flex-col border-r border-line bg-surface-2 text-ink transition-transform duration-300 ease-in-out ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         {/* Header del sidebar */}
-        <div style={{
-          padding: '24px',
-          borderBottom: '1px solid rgba(148, 163, 184, 0.2)'
-        }}>
-          <div style={{
-            fontSize: '20px',
-            fontWeight: 'bold',
-            background: 'linear-gradient(to right, #06b6d4, #3b82f6)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
-          }}>
-            🎓 Navegación
+        <div className="border-b border-line px-6 py-6">
+          <div className="font-display text-lg font-bold">
+            Matricula<span className="text-accent">TEL</span>
           </div>
-          
-          <div style={{
-            fontSize: '14px',
-            color: '#94a3b8',
-            marginTop: '8px'
-          }}>
+          <div className="mt-2 text-sm text-muted">
             {user?.role === 'admin' ? 'Administrador' : 'Estudiante'}
           </div>
         </div>
 
         {/* Menu items */}
-        <nav style={{ flex: 1, padding: '16px 0' }}>
-          {menuItems.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => handleNavigate(item.path)}
-              style={{
-                width: '100%',
-                padding: '16px 24px',
-                border: 'none',
-                background: currentPath === item.path 
-                  ? 'linear-gradient(135deg, #06b6d4, #3b82f6)' 
-                  : 'transparent',
-                color: 'white',
-                textAlign: 'left',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                fontSize: '16px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                if (currentPath !== item.path) {
-                  e.target.style.background = 'rgba(6, 182, 212, 0.1)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (currentPath !== item.path) {
-                  e.target.style.background = 'transparent';
-                }
-              }}
-            >
-              <span style={{ fontSize: '20px' }}>{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
+        <nav className="flex-1 py-4">
+          {menuItems.map((item) => {
+            const active = currentPath === item.path;
+            return (
+              <button
+                key={item.path}
+                onClick={() => handleNavigate(item.path)}
+                className={`flex w-full items-center gap-3 px-6 py-4 text-left text-base transition-colors ${
+                  active
+                    ? 'bg-accent font-medium text-ink-on-accent'
+                    : 'text-muted hover:bg-accent/10 hover:text-ink'
+                }`}
+              >
+                <span className="text-xl" aria-hidden="true">{item.icon}</span>
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
       </div>
     </>

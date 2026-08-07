@@ -16,39 +16,26 @@ const Layout = () => {
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      height: '100vh',
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 75%, #475569 100%)'
-    }}>
+    <div className="flex h-screen bg-bg text-ink">
       {/* Sidebar */}
-      <Sidebar 
+      <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         user={user}
         currentPath={location.pathname}
       />
-      
+
       {/* Contenido principal */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden'
-      }}>
+      <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <Header 
+        <Header
           user={user}
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           onLogout={handleLogout}
         />
-        
+
         {/* Área de contenido */}
-        <main style={{
-          flex: 1,
-          overflow: 'auto',
-          position: 'relative'
-        }}>
+        <main className="relative flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>

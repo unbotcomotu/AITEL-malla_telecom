@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { StudentApi } from '../../../services/student/studentApi';
 
+const KIND_CLASSES = {
+  good: {
+    text: 'text-good', border: 'border-good', borderSoft: 'border-good/25', bg: 'bg-good/10', bgSoft: 'bg-good/20',
+    card: 'border-good/25 hover:border-good',
+  },
+  bad: {
+    text: 'text-bad', border: 'border-bad', borderSoft: 'border-bad/25', bg: 'bg-bad/10', bgSoft: 'bg-bad/20',
+    card: 'border-bad/25 hover:border-bad',
+  },
+  warn: {
+    text: 'text-warn', border: 'border-warn', borderSoft: 'border-warn/25', bg: 'bg-warn/10', bgSoft: 'bg-warn/20',
+    card: 'border-warn/25 hover:border-warn',
+  },
+};
+
 const SemesterHistoryView = () => {
   const [semesterData, setSemesterData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,14 +39,14 @@ const SemesterHistoryView = () => {
     }
   };
 
-  const getCourseStatusColor = (course) => {
-    if (course.grade === null) return '#f59e0b'; // En curso
-    if (course.grade >= 11) return '#10b981'; // Aprobado
-    return '#ef4444'; // Desaprobado
+  const getCourseStatusKind = (course) => {
+    if (course.grade === null || course.grade === undefined) return 'warn';
+    if (course.grade >= 11) return 'good';
+    return 'bad';
   };
 
   const getCourseStatusIcon = (course) => {
-    if (course.grade === null) return '⏳';
+    if (course.grade === null || course.grade === undefined) return '⏳';
     if (course.grade >= 11) return '✅';
     return '❌';
   };
@@ -39,8 +54,8 @@ const SemesterHistoryView = () => {
   const calculateSemesterStats = (semester) => {
     const totalCourses = semester.courses.length;
     const approved = semester.courses.filter(c => c.grade >= 11).length;
-    const failed = semester.courses.filter(c => c.grade < 11 && c.grade !== null).length;
-    const inProgress = semester.courses.filter(c => c.grade === null).length;
+    const failed = semester.courses.filter(c => c.grade < 11 && c.grade !== null && c.grade !== undefined).length;
+    const inProgress = semester.courses.filter(c => c.grade === null || c.grade === undefined).length;
     const totalCredits = semester.courses.reduce((sum, c) => sum + c.credits, 0);
     const approvedCredits = semester.courses
       .filter(c => c.grade >= 11)
@@ -51,368 +66,131 @@ const SemesterHistoryView = () => {
 
   if (loading) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 75%, #475569 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            border: '4px solid rgba(6, 182, 212, 0.3)',
-            borderTopColor: '#06b6d4',
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-            margin: '0 auto 16px'
-          }} />
-          <p style={{ fontSize: '16px', color: '#cbd5e1' }}>
-            Cargando historial académico...
-          </p>
+      <div className="flex min-h-screen items-center justify-center bg-bg text-ink">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-line border-t-accent" />
+          <p className="text-base text-muted">Cargando historial académico...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 75%, #475569 100%)',
-      padding: '24px',
-      color: 'white'
-    }}>
+    <div className="min-h-screen bg-bg p-6 text-ink">
       {/* Header */}
-      <div style={{
-        maxWidth: '100%',
-        margin: '0 auto 32px',
-        textAlign: 'center'
-      }}>
-        <h1 style={{
-          fontSize: '36px',
-          fontWeight: 'bold',
-          background: 'linear-gradient(to right, #06b6d4, #3b82f6, #8b5cf6)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          marginBottom: '8px'
-        }}>
-          📅 Historial Académico por Semestre
-        </h1>
-        <p style={{ color: '#94a3b8', fontSize: '16px' }}>
-          Visualiza tu trayectoria académica cronológicamente
-        </p>
+      <div className="mx-auto mb-8 max-w-full text-center">
+        <h1 className="m-0 mb-2 font-display text-4xl font-bold tracking-tight">📅 Historial Académico por Semestre</h1>
+        <p className="text-base text-muted">Visualiza tu trayectoria académica cronológicamente</p>
       </div>
 
-      {/* Error Message */}
       {error && (
-        <div style={{
-          maxWidth: '800px',
-          margin: '0 auto 24px',
-          padding: '16px',
-          background: 'rgba(239, 68, 68, 0.2)',
-          border: '1px solid rgba(239, 68, 68, 0.4)',
-          borderRadius: '12px',
-          color: '#fca5a5'
-        }}>
+        <div className="mx-auto mb-6 max-w-3xl rounded-xl border border-bad/40 bg-bad/10 p-4 text-bad">
           ⚠️ {error}
         </div>
       )}
 
-      {/* Timeline Container */}
-      <div style={{
-        overflowX: 'auto',
-        paddingBottom: '24px'
-      }}>
-        <div style={{
-          display: 'flex',
-          gap: '24px',
-          minWidth: 'fit-content',
-          padding: '0 24px'
-        }}>
+      {/* Timeline */}
+      <div className="overflow-x-auto pb-6">
+        <div className="flex min-w-fit gap-6 px-6">
           {semesterData.map((semester, index) => {
             const stats = calculateSemesterStats(semester);
             const isSuspended = semester.suspended;
 
             return (
-              <div
-                key={semester.semester}
-                style={{
-                  minWidth: '320px',
-                  maxWidth: '320px',
-                  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-                  borderRadius: '16px',
-                  border: '1px solid rgba(148, 163, 184, 0.3)',
-                  padding: '20px',
-                  position: 'relative'
-                }}
-              >
+              <div key={semester.semester} className="relative min-w-[320px] max-w-[320px] rounded-2xl border border-line bg-surface p-5">
                 {/* Semester Header */}
-                <div style={{
-                  marginBottom: '16px',
-                  paddingBottom: '16px',
-                  borderBottom: '1px solid rgba(148, 163, 184, 0.2)'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '8px'
-                  }}>
-                    <h3 style={{
-                      fontSize: '20px',
-                      fontWeight: 'bold',
-                      background: 'linear-gradient(to right, #06b6d4, #3b82f6)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      margin: 0
-                    }}>
-                      {semester.semester}
-                    </h3>
-                    <span style={{
-                      fontSize: '24px',
-                      color: '#94a3b8'
-                    }}>
-                      #{index + 1}
-                    </span>
+                <div className="mb-4 border-b border-line pb-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="m-0 font-display text-xl font-bold text-accent">{semester.semester}</h3>
+                    <span className="text-2xl text-muted">#{index + 1}</span>
                   </div>
-                  
-                  <div style={{
-                    fontSize: '12px',
-                    color: '#94a3b8'
-                  }}>
+                  <div className="text-xs text-muted">
                     {semester.semester.endsWith('-0') ? 'Ciclo de Verano' : 'Ciclo Regular'}
                   </div>
                 </div>
 
                 {isSuspended ? (
-                  /* Semester Suspended */
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '40px 20px',
-                    color: '#94a3b8'
-                  }}>
-                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>⏸️</div>
-                    <p style={{ fontSize: '16px', fontWeight: '600' }}>
-                      Semestre Suspendido
-                    </p>
-                    <p style={{ fontSize: '14px', marginTop: '8px' }}>
-                      No se llevaron cursos
-                    </p>
+                  <div className="p-10 text-center text-muted">
+                    <div className="mb-3 text-5xl">⏸️</div>
+                    <p className="text-base font-semibold">Semestre Suspendido</p>
+                    <p className="mt-2 text-sm">No se llevaron cursos</p>
                   </div>
                 ) : (
                   <>
                     {/* Stats Summary */}
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: '12px',
-                      marginBottom: '16px'
-                    }}>
-                      <div style={{
-                        padding: '12px',
-                        borderRadius: '8px',
-                        background: 'rgba(16, 185, 129, 0.1)',
-                        border: '1px solid rgba(16, 185, 129, 0.3)'
-                      }}>
-                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
-                          {stats.approved}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                          Aprobados
-                        </div>
+                    <div className="mb-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-good/30 bg-good/10 p-3">
+                        <div className="text-xl font-bold text-good">{stats.approved}</div>
+                        <div className="text-xs text-muted">Aprobados</div>
                       </div>
 
                       {stats.failed > 0 && (
-                        <div style={{
-                          padding: '12px',
-                          borderRadius: '8px',
-                          background: 'rgba(239, 68, 68, 0.1)',
-                          border: '1px solid rgba(239, 68, 68, 0.3)'
-                        }}>
-                          <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ef4444' }}>
-                            {stats.failed}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                            Desaprobados
-                          </div>
+                        <div className="rounded-lg border border-bad/30 bg-bad/10 p-3">
+                          <div className="text-xl font-bold text-bad">{stats.failed}</div>
+                          <div className="text-xs text-muted">Desaprobados</div>
                         </div>
                       )}
 
                       {stats.inProgress > 0 && (
-                        <div style={{
-                          padding: '12px',
-                          borderRadius: '8px',
-                          background: 'rgba(245, 158, 11, 0.1)',
-                          border: '1px solid rgba(245, 158, 11, 0.3)'
-                        }}>
-                          <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f59e0b' }}>
-                            {stats.inProgress}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                            En curso
-                          </div>
+                        <div className="rounded-lg border border-warn/30 bg-warn/10 p-3">
+                          <div className="text-xl font-bold text-warn">{stats.inProgress}</div>
+                          <div className="text-xs text-muted">En curso</div>
                         </div>
                       )}
 
-                      <div style={{
-                        padding: '12px',
-                        borderRadius: '8px',
-                        background: 'rgba(6, 182, 212, 0.1)',
-                        border: '1px solid rgba(6, 182, 212, 0.3)'
-                      }}>
-                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#06b6d4' }}>
-                          {stats.approvedCredits}/{stats.totalCredits}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                          Créditos
-                        </div>
+                      <div className="rounded-lg border border-accent/30 bg-accent/10 p-3">
+                        <div className="text-xl font-bold text-accent">{stats.approvedCredits}/{stats.totalCredits}</div>
+                        <div className="text-xs text-muted">Créditos</div>
                       </div>
                     </div>
 
                     {/* Courses List */}
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
-                    }}>
-                      {semester.courses.map((course) => (
-                        <div
-                          key={course.id}
-                          onClick={() => setSelectedCourse(course)}
-                          style={{
-                            padding: '12px',
-                            borderRadius: '8px',
-                            background: 'rgba(30, 41, 59, 0.6)',
-                            border: `2px solid ${getCourseStatusColor(course)}40`,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            position: 'relative'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateX(4px)';
-                            e.currentTarget.style.borderColor = getCourseStatusColor(course);
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateX(0)';
-                            e.currentTarget.style.borderColor = `${getCourseStatusColor(course)}40`;
-                          }}
-                        >
-                          {/* Status Icon */}
-                          <div style={{
-                            position: 'absolute',
-                            top: '8px',
-                            right: '8px',
-                            fontSize: '16px'
-                          }}>
-                            {getCourseStatusIcon(course)}
-                          </div>
+                    <div className="flex flex-col gap-2">
+                      {semester.courses.map((course) => {
+                        const kind = KIND_CLASSES[getCourseStatusKind(course)];
+                        return (
+                          <div
+                            key={course.id}
+                            onClick={() => setSelectedCourse(course)}
+                            className={`relative cursor-pointer rounded-lg border-2 bg-bg p-3 transition-all hover:translate-x-1 ${kind.card}`}
+                          >
+                            <div className="absolute right-2 top-2 text-base">{getCourseStatusIcon(course)}</div>
 
-                          {/* Course Code */}
-                          <div style={{
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            color: getCourseStatusColor(course),
-                            marginBottom: '4px'
-                          }}>
-                            {course.code}
-                          </div>
+                            <div className={`mb-1 text-xs font-semibold ${kind.text}`}>{course.code}</div>
 
-                          {/* Course Name */}
-                          <div style={{
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            color: '#cbd5e1',
-                            marginBottom: '8px',
-                            lineHeight: '1.3',
-                            paddingRight: '24px'
-                          }}>
-                            {course.name}
-                          </div>
+                            <div className="mb-2 pr-6 text-sm font-semibold leading-tight text-ink">{course.name}</div>
 
-                          {/* Course Info */}
-                          <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            fontSize: '12px'
-                          }}>
-                            <span style={{ color: '#94a3b8' }}>
-                              {course.credits} créditos
-                            </span>
-                            {course.grade !== null && (
-                              <span style={{
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                background: `${getCourseStatusColor(course)}20`,
-                                color: getCourseStatusColor(course),
-                                fontWeight: '600'
-                              }}>
-                                Nota: {course.grade}
-                              </span>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted">{course.credits} créditos</span>
+                              {course.grade !== null && course.grade !== undefined && (
+                                <span className={`rounded px-2 py-0.5 font-semibold ${kind.bg} ${kind.text}`}>
+                                  Nota: {course.grade}
+                                </span>
+                              )}
+                            </div>
+
+                            {course.exception && (
+                              <div className="mt-2 inline-block rounded bg-warn/20 px-2 py-0.5 text-[10px] font-semibold text-warn">
+                                ⚠️ EXCEPCIÓN
+                              </div>
+                            )}
+
+                            {course.isElective && (
+                              <div className="mt-2 inline-block rounded bg-accent-deep/20 px-2 py-0.5 text-[10px] font-semibold text-accent-deep">
+                                📚 ELECTIVO
+                              </div>
                             )}
                           </div>
-
-                          {/* Exception Badge */}
-                          {course.exception && (
-                            <div style={{
-                              marginTop: '8px',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              background: 'rgba(245, 158, 11, 0.2)',
-                              color: '#f59e0b',
-                              fontSize: '10px',
-                              fontWeight: '600',
-                              display: 'inline-block'
-                            }}>
-                              ⚠️ EXCEPCIÓN
-                            </div>
-                          )}
-
-                          {/* Elective Badge */}
-                          {course.isElective && (
-                            <div style={{
-                              marginTop: '8px',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              background: 'rgba(139, 92, 246, 0.2)',
-                              color: '#a855f7',
-                              fontSize: '10px',
-                              fontWeight: '600',
-                              display: 'inline-block'
-                            }}>
-                              📚 ELECTIVO
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </>
                 )}
 
-                {/* Connector Line to Next Semester */}
+                {/* Connector */}
                 {index < semesterData.length - 1 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '50%',
-                    right: '-24px',
-                    width: '24px',
-                    height: '2px',
-                    background: 'linear-gradient(to right, #06b6d4, transparent)',
-                    transform: 'translateY(-50%)'
-                  }}>
-                    <div style={{
-                      position: 'absolute',
-                      right: '-4px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: '0',
-                      height: '0',
-                      borderLeft: '6px solid #06b6d4',
-                      borderTop: '4px solid transparent',
-                      borderBottom: '4px solid transparent'
-                    }} />
+                  <div className="absolute right-[-24px] top-1/2 h-0.5 w-6 -translate-y-1/2 bg-gradient-to-r from-accent to-transparent">
+                    <div className="absolute right-[-4px] top-1/2 h-0 w-0 -translate-y-1/2 border-y-4 border-l-[6px] border-y-transparent border-l-accent" />
                   </div>
                 )}
               </div>
@@ -425,171 +203,66 @@ const SemesterHistoryView = () => {
       {selectedCourse && (
         <div
           onClick={() => setSelectedCourse(null)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px'
-          }}
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
-              borderRadius: '16px',
-              border: `2px solid ${getCourseStatusColor(selectedCourse)}`,
-              padding: '32px',
-              maxWidth: '500px',
-              width: '100%'
-            }}
+            className={`w-full max-w-[500px] rounded-2xl border-2 bg-surface p-8 ${KIND_CLASSES[getCourseStatusKind(selectedCourse)].border}`}
           >
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              marginBottom: '24px'
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  fontSize: '14px',
-                  color: getCourseStatusColor(selectedCourse),
-                  fontWeight: '600',
-                  marginBottom: '8px'
-                }}>
+            <div className="mb-6 flex items-start justify-between">
+              <div className="flex-1">
+                <div className={`mb-2 text-sm font-semibold ${KIND_CLASSES[getCourseStatusKind(selectedCourse)].text}`}>
                   {selectedCourse.code}
                 </div>
-                <h3 style={{
-                  fontSize: '24px',
-                  fontWeight: 'bold',
-                  color: '#cbd5e1',
-                  margin: 0
-                }}>
-                  {selectedCourse.name}
-                </h3>
+                <h3 className="m-0 font-display text-2xl font-bold text-ink">{selectedCourse.name}</h3>
               </div>
               <button
                 onClick={() => setSelectedCourse(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#94a3b8',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                  padding: '0',
-                  marginLeft: '16px'
-                }}
+                className="ml-4 text-2xl text-muted hover:text-ink"
               >
                 ✕
               </button>
             </div>
 
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px'
-            }}>
-              <div style={{
-                padding: '16px',
-                borderRadius: '8px',
-                background: 'rgba(30, 41, 59, 0.6)'
-              }}>
-                <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>
-                  Créditos
-                </div>
-                <div style={{ color: '#cbd5e1', fontSize: '18px', fontWeight: '600' }}>
-                  {selectedCourse.credits}
-                </div>
+            <div className="flex flex-col gap-4">
+              <div className="rounded-lg bg-bg p-4">
+                <div className="mb-1 text-xs text-muted">Créditos</div>
+                <div className="text-lg font-semibold text-ink">{selectedCourse.credits}</div>
               </div>
 
-              {selectedCourse.grade !== null && (
-                <div style={{
-                  padding: '16px',
-                  borderRadius: '8px',
-                  background: `${getCourseStatusColor(selectedCourse)}20`,
-                  border: `1px solid ${getCourseStatusColor(selectedCourse)}40`
-                }}>
-                  <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>
-                    Nota Final
-                  </div>
-                  <div style={{
-                    color: getCourseStatusColor(selectedCourse),
-                    fontSize: '32px',
-                    fontWeight: 'bold'
-                  }}>
+              {selectedCourse.grade !== null && selectedCourse.grade !== undefined ? (
+                <div className={`rounded-lg border p-4 ${KIND_CLASSES[getCourseStatusKind(selectedCourse)].borderSoft} ${KIND_CLASSES[getCourseStatusKind(selectedCourse)].bg}`}>
+                  <div className="mb-1 text-xs text-muted">Nota Final</div>
+                  <div className={`text-3xl font-bold ${KIND_CLASSES[getCourseStatusKind(selectedCourse)].text}`}>
                     {selectedCourse.grade}/20
                   </div>
-                  <div style={{
-                    marginTop: '8px',
-                    fontSize: '14px',
-                    color: getCourseStatusColor(selectedCourse),
-                    fontWeight: '600'
-                  }}>
+                  <div className={`mt-2 text-sm font-semibold ${KIND_CLASSES[getCourseStatusKind(selectedCourse)].text}`}>
                     {selectedCourse.grade >= 11 ? '✅ Aprobado' : '❌ Desaprobado'}
                   </div>
                 </div>
-              )}
-
-              {selectedCourse.grade === null && (
-                <div style={{
-                  padding: '16px',
-                  borderRadius: '8px',
-                  background: 'rgba(245, 158, 11, 0.2)',
-                  border: '1px solid rgba(245, 158, 11, 0.4)',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>⏳</div>
-                  <div style={{ color: '#f59e0b', fontSize: '16px', fontWeight: '600' }}>
-                    Curso en progreso
-                  </div>
+              ) : (
+                <div className="rounded-lg border border-warn/40 bg-warn/20 p-4 text-center">
+                  <div className="mb-2 text-3xl">⏳</div>
+                  <div className="text-base font-semibold text-warn">Curso en progreso</div>
                 </div>
               )}
 
               {selectedCourse.subcategoryName && (
-                <div style={{
-                  padding: '12px',
-                  borderRadius: '8px',
-                  background: 'rgba(139, 92, 246, 0.2)',
-                  border: '1px solid rgba(139, 92, 246, 0.3)'
-                }}>
-                  <div style={{ color: '#a855f7', fontSize: '14px' }}>
-                    📚 {selectedCourse.subcategoryName}
-                  </div>
+                <div className="rounded-lg border border-accent-deep/30 bg-accent-deep/15 p-3">
+                  <div className="text-sm text-accent-deep">📚 {selectedCourse.subcategoryName}</div>
                 </div>
               )}
 
               {selectedCourse.exception && (
-                <div style={{
-                  padding: '12px',
-                  borderRadius: '8px',
-                  background: 'rgba(245, 158, 11, 0.2)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)'
-                }}>
-                  <div style={{ color: '#f59e0b', fontSize: '14px', fontWeight: '600' }}>
-                    ⚠️ Excepción de matrícula
-                  </div>
-                  <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>
-                    Curso llevado sin cumplir prerrequisitos
-                  </div>
+                <div className="rounded-lg border border-warn/30 bg-warn/15 p-3">
+                  <div className="text-sm font-semibold text-warn">⚠️ Excepción de matrícula</div>
+                  <div className="mt-1 text-xs text-muted">Curso llevado sin cumplir prerrequisitos</div>
                 </div>
               )}
             </div>
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 };

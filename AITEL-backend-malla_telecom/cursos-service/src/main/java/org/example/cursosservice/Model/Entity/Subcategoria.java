@@ -19,6 +19,26 @@ public class Subcategoria {
     @Column(nullable = false, length = 100)
     private String subcategoria;
 
+    @Column(nullable = false)
+    private Boolean oculta = false;
+
+    @Column(nullable = false)
+    private Boolean congelada = false;
+
+    @Column(columnDefinition = "TEXT")
+    private String descripcion;
+
+    @Column(length = 20)
+    private String color;
+
+    private Integer ciclo;
+
+    @Column(name = "cursos_requeridos")
+    private Integer cursosRequeridos;
+
+    @Column(name = "requiere_todos", nullable = false)
+    private Boolean requiereTodos = false;
+
     public Long getId() {
         return id;
     }
@@ -41,5 +61,61 @@ public class Subcategoria {
 
     public void setSubcategoria(String subcategoria) {
         this.subcategoria = subcategoria;
+    }
+
+    public Boolean getOculta() {
+        return oculta;
+    }
+
+    public void setOculta(Boolean oculta) {
+        this.oculta = oculta;
+    }
+
+    public Boolean getCongelada() {
+        return congelada;
+    }
+
+    public void setCongelada(Boolean congelada) {
+        this.congelada = congelada;
+    }
+
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
+    }
+
+    public String getColor() {
+        return color;
+    }
+
+    public void setColor(String color) {
+        this.color = color;
+    }
+
+    public Integer getCiclo() {
+        return ciclo;
+    }
+
+    public void setCiclo(Integer ciclo) {
+        this.ciclo = ciclo;
+    }
+
+    public Integer getCursosRequeridos() {
+        return cursosRequeridos;
+    }
+
+    public void setCursosRequeridos(Integer cursosRequeridos) {
+        this.cursosRequeridos = cursosRequeridos;
+    }
+
+    public Boolean getRequiereTodos() {
+        return requiereTodos;
+    }
+
+    public void setRequiereTodos(Boolean requiereTodos) {
+        this.requiereTodos = requiereTodos;
     }
 }

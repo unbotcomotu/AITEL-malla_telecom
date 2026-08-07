@@ -10,21 +10,26 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// Simulando imports de los módulos (en tu proyecto real serían imports reales)
 import { checkPrerequisites, getCourseStatus } from '../../../utils/prerequisiteUtils.js';
 import CourseNode from './CourseNode.jsx';
 import CourseDetailPanel from './CourseDetailPanel.jsx';
 import { StudentApi } from '../../../services/student/studentApi.js';
 import { CurriculumApi } from '../../../services/student/curriculumApi.js';
-const nodeTypes = { 
-  courseNode: CourseNode 
+
+const nodeTypes = {
+  courseNode: CourseNode
 };
 
-// Componente Principal de la Aplicación
+const LEGEND_ITEMS = [
+  { key: 'approved', label: 'Aprobado', dotClass: 'bg-good', pillClass: 'bg-good/15 text-good' },
+  { key: 'inProgress', label: 'En progreso', dotClass: 'bg-warn', pillClass: 'bg-warn/15 text-warn' },
+  { key: 'available', label: 'Disponible', dotClass: 'bg-accent', pillClass: 'bg-accent/15 text-accent' },
+  { key: 'locked', label: 'Bloqueado', dotClass: 'bg-muted', pillClass: 'bg-muted/15 text-muted' },
+];
+
 function CurriculumView() {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-    // NUEVOS ESTADOS
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [curriculumData, setCurriculumData] = useState(null);
@@ -34,14 +39,22 @@ function CurriculumView() {
     currentSemester: '',
     studentInfo: null
   });
-  
-  // Estados derivados para compatibilidad
+
   const courseGrades = studentData.courseGrades;
   const currentCourses = studentData.currentCourses;
   const currentSemester = studentData.currentSemester;
-  const approvedCourses = useMemo(() => 
-    Object.keys(courseGrades).filter(courseId => courseGrades[courseId] >= 11),
+  // Object.keys() siempre da strings; los ids de curso son numeros en el
+  // resto de la app (vienen de la API asi), por eso se convierten aca -
+  // si no, el .includes(node.id) de mas abajo nunca haria match.
+  const approvedCourses = useMemo(() =>
+    Object.keys(courseGrades).filter(courseId => courseGrades[courseId] >= 11).map(Number),
     [courseGrades]
+  );
+  // currentCourses llega como objetos {id, code, name, ...} desde el backend,
+  // no como una lista plana de ids.
+  const currentCourseIds = useMemo(() =>
+    new Set((studentData.currentCourses || []).map(c => c.id)),
+    [studentData.currentCourses]
   );
 
   useEffect(() => {
@@ -51,14 +64,13 @@ function CurriculumView() {
   const loadInitialData = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      // Cargar datos en paralelo
       const [curriculum, academic] = await Promise.all([
         CurriculumApi.getCurriculum(),
         StudentApi.getAcademicInfo()
       ]);
-      
+
       setCurriculumData(curriculum);
       setStudentData({
         courseGrades: academic.courseGrades || {},
@@ -75,26 +87,24 @@ function CurriculumView() {
   };
 
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(() => {
-    // Si aún no hay datos, retornar vacío
     if (!curriculumData) {
       return { nodes: [], edges: [] };
     }
 
     const nodes = curriculumData.nodes.map((node) => {
       const isApproved = approvedCourses.includes(node.id);
-      const isInProgress = currentCourses.includes(node.id);
-      // Dentro del useMemo donde calculas los nodos:
+      const isInProgress = currentCourseIds.has(node.id);
       const prerequisites = checkPrerequisites(
-        node.id, 
+        node.id,
         courseGrades,
-        curriculumData.edges,           // ← pasar edges
-        curriculumData.nodes,           // ← pasar nodes
-        curriculumData.prerequisiteTypes // ← pasar types
+        curriculumData.edges,
+        curriculumData.nodes,
+        curriculumData.prerequisiteTypes
       );
       const arePrerequisitesMet = prerequisites.every(p => p.isMet);
-      
+
       let status = 'locked';
-      
+
       if (isApproved) {
         status = 'approved';
       } else if (isInProgress) {
@@ -109,12 +119,12 @@ function CurriculumView() {
       return {
         id: node.id,
         type: 'courseNode',
-        position: { 
-          x: node.cycle * 300, 
+        position: {
+          x: node.cycle * 300,
           y: nodeIndexInCycle * 180 + 50
         },
-        data: { 
-          label: node.name, 
+        data: {
+          label: node.name,
           credits: node.credits,
           cycle: node.cycle,
           status: status,
@@ -128,45 +138,53 @@ function CurriculumView() {
     });
 
     const edges = curriculumData.edges.map(edge => {
-      let strokeColor = '#06b6d4';
+      let strokeVar = '--t-accent';
       let strokeDasharray = 'none';
-      
+
       const PREREQUISITE_TYPES = curriculumData.prerequisiteTypes || {};
-      
+
       switch (edge.type) {
         case PREREQUISITE_TYPES.APPROVED:
-          strokeColor = '#10b981';
+          strokeVar = '--t-good';
           break;
         case PREREQUISITE_TYPES.MIN_GRADE:
-          strokeColor = '#f59e0b';
+          strokeVar = '--t-warn';
           break;
         case PREREQUISITE_TYPES.COREQUISITE:
-          strokeColor = '#06b6d4';
+          strokeVar = '--t-accent';
           strokeDasharray = '8,4';
           break;
         default:
-          strokeColor = '#64748b';
+          strokeVar = '--t-muted';
       }
-      
+
       return {
         ...edge,
         type: 'smoothstep',
         markerEnd: { type: 'arrowclosed' },
-        style: { 
-          stroke: strokeColor, 
-          strokeWidth: 2, 
+        style: {
+          stroke: `var(${strokeVar})`,
+          strokeWidth: 2,
           strokeDasharray: strokeDasharray,
-          filter: `drop-shadow(0 0 5px ${strokeColor}80)`
         },
         animated: edge.type === PREREQUISITE_TYPES.COREQUISITE
       };
     });
 
     return { nodes, edges };
-  }, [curriculumData, approvedCourses, courseGrades, currentCourses]);
+  }, [curriculumData, approvedCourses, courseGrades, currentCourseIds]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutedEdges);
+
+  // useNodesState/useEdgesState solo toman su valor inicial una vez; sin este
+  // efecto, el grafo queda vacío la primera vez porque layoutedNodes/Edges
+  // se recalculan de forma asincrona (recien cuando termina de cargar
+  // curriculumData) y nunca se copian al estado real que consume ReactFlow.
+  useEffect(() => {
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
+  }, [layoutedNodes, layoutedEdges, setNodes, setEdges]);
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
@@ -179,295 +197,94 @@ function CurriculumView() {
     if (!curriculumData) {
       return { total: 0, approved: 0, inProgress: 0, available: 0, locked: 0 };
     }
-    
+
     const total = curriculumData.nodes.length;
     const approved = approvedCourses.length;
     const inProgress = currentCourses.length;
     const available = nodes.filter(n => n.data.status === 'available').length;
     const locked = total - approved - inProgress - available;
-    
+
     return { total, approved, inProgress, available, locked };
   }, [curriculumData, approvedCourses, currentCourses, nodes]);
 
   return (
-    <div style={{
-      width: '100vw',
-      height: '100vh',
-      color: 'white',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 75%, #475569 100%)',
-      position: 'relative'
-    }}>
-    {/* Mensaje de error */}
+    <div className="relative h-screen w-screen bg-bg text-ink">
+      {/* Mensaje de error */}
       {error && (
-        <div style={{
-          position: 'absolute',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 1000,
-          padding: '16px 24px',
-          background: 'rgba(239, 68, 68, 0.95)',
-          border: '1px solid #ef4444',
-          borderRadius: '12px',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)'
-        }}>
+        <div className="absolute left-1/2 top-5 z-[1000] flex -translate-x-1/2 items-center gap-3 rounded-lg border border-bad bg-bad px-6 py-4 text-white shadow-lg">
           <span>⚠️ {error}</span>
-          <button onClick={loadInitialData} style={{
-            padding: '4px 12px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            border: 'none',
-            borderRadius: '6px',
-            color: 'white',
-            cursor: 'pointer',
-            fontSize: '12px'
-          }}>
+          <button
+            onClick={loadInitialData}
+            className="rounded-md bg-white/20 px-3 py-1 text-xs hover:bg-white/30"
+          >
             Reintentar
           </button>
         </div>
       )}
+
       {/* Loading state */}
       {loading && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 1000,
-          textAlign: 'center'
-        }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            border: '4px solid rgba(6, 182, 212, 0.3)',
-            borderTopColor: '#06b6d4',
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-            margin: '0 auto 16px'
-          }} />
-          <p style={{ color: '#cbd5e1', fontSize: '16px' }}>
-            Cargando malla curricular...
-          </p>
+        <div className="absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-1/2 text-center">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-line border-t-accent" />
+          <p className="text-base text-muted">Cargando malla curricular...</p>
         </div>
       )}
-      {/* Header mejorado */}
-    {/* Contenido principal - solo mostrar si no está cargando */}
-    {!loading && curriculumData && (
-      <>
-        {/* Header */}
-      <header style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
-        padding: '24px',
-        background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-        backdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(148, 163, 184, 0.2)'
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '16px'
-        }}>
-          <div>
-            <h1 style={{
-              fontSize: '32px',
-              fontWeight: 'bold',
-              background: 'linear-gradient(to right, #06b6d4, #3b82f6, #8b5cf6)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              margin: 0
-            }}>
-              🎓 Malla Curricular
-            </h1>
-            <p style={{ fontSize: '14px', color: '#cbd5e1', margin: '4px 0 0 0' }}>
-              Ingeniería de Telecomunicaciones - PUCP
-            </p>
-          </div>
 
-          {/* Información del semestre actual y progreso */}
-          <div style={{
-            display: 'flex',
-            gap: '16px',
-            alignItems: 'center'
-          }}>
-            <div style={{
-              padding: '8px 16px',
-              borderRadius: '12px',
-              background: 'rgba(245, 158, 11, 0.2)',
-              border: '1px solid rgba(245, 158, 11, 0.3)'
-            }}>
-              <div style={{ color: '#fbbf24', fontSize: '12px', fontWeight: '600' }}>
-                📅 SEMESTRE ACTUAL
-              </div>
-              <div style={{ color: '#fbbf24', fontSize: '16px', fontWeight: '700' }}>
-                {currentSemester}
-              </div>
+      {!loading && curriculumData && (
+        <header className="absolute inset-x-0 top-0 z-10 border-b border-line bg-surface/95 px-6 py-6 backdrop-blur-lg">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="m-0 font-display text-3xl font-bold tracking-tight">Malla Curricular</h1>
+              <p className="mt-1 text-sm text-muted">Ingeniería de las Telecomunicaciones</p>
             </div>
 
-            <div style={{
-              padding: '8px 16px',
-              borderRadius: '12px',
-              background: 'rgba(16, 185, 129, 0.2)',
-              border: '1px solid rgba(16, 185, 129, 0.3)'
-            }}>
-              <div style={{ color: '#10b981', fontSize: '12px', fontWeight: '600' }}>
-                📊 PROGRESO
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="rounded-lg border border-warn/30 bg-warn/15 px-4 py-2">
+                <div className="text-xs font-semibold text-warn">SEMESTRE ACTUAL</div>
+                <div className="text-base font-bold text-warn">{currentSemester}</div>
               </div>
-              <div style={{ color: '#10b981', fontSize: '16px', fontWeight: '700' }}>
-                {progressStats.approved}/{progressStats.total} ({Math.round((progressStats.approved/progressStats.total)*100)}%)
+
+              <div className="rounded-lg border border-good/30 bg-good/15 px-4 py-2">
+                <div className="text-xs font-semibold text-good">PROGRESO</div>
+                <div className="text-base font-bold text-good">
+                  {progressStats.approved}/{progressStats.total} ({progressStats.total ? Math.round((progressStats.approved / progressStats.total) * 100) : 0}%)
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        
-        {/* Leyenda mejorada con nuevo estado */}
-        <div style={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          gap: '20px', 
-          fontSize: '12px' 
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px', 
-            padding: '6px 12px', 
-            borderRadius: '20px', 
-            background: 'rgba(16, 185, 129, 0.2)' 
-          }}>
-            <div style={{ 
-              width: '12px', 
-              height: '12px', 
-              borderRadius: '50%', 
-              background: 'linear-gradient(135deg, #10b981, #059669)' 
-            }}></div>
-            <span style={{ color: '#34d399', fontWeight: '500' }}>
-              Aprobado ({progressStats.approved})
-            </span>
-          </div>
 
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px', 
-            padding: '6px 12px', 
-            borderRadius: '20px', 
-            background: 'rgba(245, 158, 11, 0.2)' 
-          }}>
-            <div style={{ 
-              width: '12px', 
-              height: '12px', 
-              borderRadius: '50%', 
-              background: 'linear-gradient(135deg, #f59e0b, #d97706)' 
-            }}></div>
-            <span style={{ color: '#fbbf24', fontWeight: '500' }}>
-              En Progreso ({progressStats.inProgress})
-            </span>
-          </div>
+          {/* Leyenda */}
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            {LEGEND_ITEMS.map(item => (
+              <div key={item.key} className={`flex items-center gap-2 rounded-full px-3 py-1.5 font-medium ${item.pillClass}`}>
+                <span className={`h-3 w-3 rounded-full ${item.dotClass}`} />
+                {item.label} ({progressStats[item.key]})
+              </div>
+            ))}
 
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px', 
-            padding: '6px 12px', 
-            borderRadius: '20px', 
-            background: 'rgba(6, 182, 212, 0.2)' 
-          }}>
-            <div style={{ 
-              width: '12px', 
-              height: '12px', 
-              borderRadius: '50%', 
-              background: 'linear-gradient(135deg, #06b6d4, #0891b2)' 
-            }}></div>
-            <span style={{ color: '#22d3ee', fontWeight: '500' }}>
-              Disponible ({progressStats.available})
-            </span>
-          </div>
+            <div className="mx-2 h-5 w-px bg-line" />
 
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px', 
-            padding: '6px 12px', 
-            borderRadius: '20px', 
-            background: 'rgba(71, 85, 105, 0.2)' 
-          }}>
-            <div style={{ 
-              width: '12px', 
-              height: '12px', 
-              borderRadius: '50%', 
-              background: 'linear-gradient(135deg, #475569, #334155)' 
-            }}></div>
-            <span style={{ color: '#cbd5e1', fontWeight: '500' }}>
-              Bloqueado ({progressStats.locked})
-            </span>
+            <div className="flex items-center gap-1.5 rounded-full bg-good/10 px-3 py-1.5">
+              <span className="h-0.5 w-4 bg-good" />
+              <span className="text-[11px] font-medium text-good">Aprobado (≥11)</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full bg-warn/10 px-3 py-1.5">
+              <span className="h-0.5 w-4 bg-warn" />
+              <span className="text-[11px] font-medium text-warn">Nota mínima</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1.5">
+              <span
+                className="h-0.5 w-4"
+                style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--t-accent) 0, var(--t-accent) 4px, transparent 4px, transparent 8px)' }}
+              />
+              <span className="text-[11px] font-medium text-accent">Correquisito</span>
+            </div>
           </div>
-          
-          {/* Separador */}
-          <div style={{ width: '1px', height: '20px', background: '#64748b', margin: '0 8px' }}></div>
-          
-          {/* Leyenda de prerrequisitos */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px', 
-            padding: '6px 12px', 
-            borderRadius: '20px', 
-            background: 'rgba(16, 185, 129, 0.15)' 
-          }}>
-            <div style={{ 
-              width: '16px', 
-              height: '2px', 
-              background: '#10b981' 
-            }}></div>
-            <span style={{ color: '#34d399', fontWeight: '500', fontSize: '11px' }}>Aprobado (≥11)</span>
-          </div>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px', 
-            padding: '6px 12px', 
-            borderRadius: '20px', 
-            background: 'rgba(245, 158, 11, 0.15)' 
-          }}>
-            <div style={{ 
-              width: '16px', 
-              height: '2px', 
-              background: '#f59e0b' 
-            }}></div>
-            <span style={{ color: '#fbbf24', fontWeight: '500', fontSize: '11px' }}>Nota mínima</span>
-          </div>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px', 
-            padding: '6px 12px', 
-            borderRadius: '20px', 
-            background: 'rgba(6, 182, 212, 0.15)' 
-          }}>
-            <div style={{ 
-              width: '16px', 
-              height: '2px', 
-              background: '#06b6d4',
-              backgroundImage: 'repeating-linear-gradient(90deg, #06b6d4 0, #06b6d4 4px, transparent 4px, transparent 8px)'
-            }}></div>
-            <span style={{ color: '#22d3ee', fontWeight: '500', fontSize: '11px' }}>Correquisito</span>
-          </div>
-        </div>
-      </header>
-      </>
-    )}
+        </header>
+      )}
+
       {/* ReactFlow Container */}
-      <div style={{ width: '100%', height: '100%', paddingTop: '160px' }}>
+      <div className="h-full w-full pt-40">
         <ReactFlowProvider>
           <ReactFlow
             nodes={nodes}
@@ -480,42 +297,30 @@ function CurriculumView() {
             minZoom={0.3}
             maxZoom={1.5}
             defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
-            style={{
-              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 75%, #475569 100%)'
-            }}
+            style={{ background: 'var(--t-bg)' }}
           >
-            <Background 
-              color="rgba(148, 163, 184, 0.3)" 
-              gap={32} 
-              size={1}
-              variant="dots"
+            <Background color="var(--t-line)" gap={32} size={1} variant="dots" style={{ opacity: 0.6 }} />
+            <Controls
               style={{
-                opacity: 0.4
-              }}
-            />
-            <Controls 
-              style={{
-                background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
+                background: 'var(--t-surface)',
+                border: '1px solid var(--t-line)',
                 borderRadius: '12px',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)'
               }}
               showInteractive={false}
             />
-            <MiniMap 
+            <MiniMap
               nodeColor={(node) => {
-                if (node.data.status === 'approved') return '#10b981';
-                if (node.data.status === 'in_progress') return '#f59e0b';
-                if (node.data.status === 'available') return '#06b6d4';
-                return '#475569';
+                if (node.data.status === 'approved') return 'var(--t-good)';
+                if (node.data.status === 'in_progress') return 'var(--t-warn)';
+                if (node.data.status === 'available') return 'var(--t-accent)';
+                return 'var(--t-muted)';
               }}
               style={{
-                background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
+                background: 'var(--t-surface)',
+                border: '1px solid var(--t-line)',
                 borderRadius: '12px',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)'
               }}
               pannable
               zoomable
@@ -525,20 +330,14 @@ function CurriculumView() {
       </div>
 
       {/* Panel de Detalles */}
-      <CourseDetailPanel 
-        course={selectedCourse} 
+      <CourseDetailPanel
+        course={selectedCourse}
         onClose={handleClosePanel}
         isOpen={isPanelOpen}
         courseGrades={courseGrades}
+        curriculumData={curriculumData}
       />
-      {/* Animación CSS */}
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
-    
   );
 }
 
