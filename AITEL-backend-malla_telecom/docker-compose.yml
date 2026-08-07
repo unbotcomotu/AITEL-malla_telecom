@@ -6,12 +6,14 @@ services:
     ports:
       - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_APP_USER: ${MYSQL_APP_USER:-aitel_app}
+      MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD:-aitel_app}
     volumes:
       - aitel_mysql_data:/var/lib/mysql
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\""]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,7 +28,9 @@ services:
       - "8001:8001"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/usuarios_service_db
-      JWT_SECRET: aitel-dev-secret-key-change-in-production-0123456789abcdef
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_APP_USER:-aitel_app}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-aitel_app}
+      JWT_SECRET: ${JWT_SECRET:-aitel-dev-secret-key-change-in-production-0123456789abcdef}
     depends_on:
       mysql:
         condition: service_healthy
@@ -41,6 +45,8 @@ services:
       - "8002:8002"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/cursos_service_db
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_APP_USER:-aitel_app}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-aitel_app}
       USUARIOS_SERVICE_URL: http://usuarios-service:8001
     depends_on:
       mysql:
@@ -56,6 +62,8 @@ services:
       - "8003:8003"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/semestres_service_db
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_APP_USER:-aitel_app}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-aitel_app}
       CURSOS_SERVICE_URL: http://cursos-service:8002
       USUARIOS_SERVICE_URL: http://usuarios-service:8001
     depends_on:
@@ -72,6 +80,8 @@ services:
       - "8004:8004"
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/comentarios_service_db
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_APP_USER:-aitel_app}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-aitel_app}
       USUARIOS_SERVICE_URL: http://usuarios-service:8001
     depends_on:
       mysql:
@@ -86,7 +96,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      JWT_SECRET: aitel-dev-secret-key-change-in-production-0123456789abcdef
+      JWT_SECRET: ${JWT_SECRET:-aitel-dev-secret-key-change-in-production-0123456789abcdef}
       USUARIOS_SERVICE_URL: http://usuarios-service:8001
       CURSOS_SERVICE_URL: http://cursos-service:8002
       SEMESTRES_SERVICE_URL: http://semestres-service:8003
