@@ -10,6 +10,11 @@ COPY semestres-service/pom.xml semestres-service/pom.xml
 COPY comentarios-service/pom.xml comentarios-service/pom.xml
 COPY gateway-service/pom.xml gateway-service/pom.xml
 
+# Paso separado: resuelve dependencias solo a partir de los pom.xml. Esta capa
+# solo se invalida si cambia un pom.xml, no cada vez que cambia el codigo -
+# evita volver a descargar todo Maven Central en cada rebuild.
+RUN mvn -q -pl usuarios-service -am dependency:go-offline
+
 COPY usuarios-service/src usuarios-service/src
 RUN mvn -q -pl usuarios-service package -DskipTests
 
