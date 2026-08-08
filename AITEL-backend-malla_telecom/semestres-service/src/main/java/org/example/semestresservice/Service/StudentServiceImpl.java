@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -133,8 +134,14 @@ public class StudentServiceImpl implements StudentService {
         Set<String> todosLosSemestres = new LinkedHashSet<>(agrupado.keySet());
         todosLosSemestres.addAll(suspendidoPorSemestre.keySet());
 
+        // Orden cronologico real (no el orden en que llegaron de la BD): un semestre
+        // suspendido sin cursos solo existe en suspendidoPorSemestre, y sin este sort
+        // siempre terminaba al final de la lista sin importar a que anio perteneciera.
+        List<String> semestresOrdenados = new ArrayList<>(todosLosSemestres);
+        semestresOrdenados.sort(Comparator.comparingInt(StudentServiceImpl::ordenSemestre));
+
         List<SemesterHistoryEntry> resultado = new ArrayList<>();
-        for (String semestre : todosLosSemestres) {
+        for (String semestre : semestresOrdenados) {
             boolean suspendido = Boolean.TRUE.equals(suspendidoPorSemestre.get(semestre));
             List<CourseHistoryEntry> cursos = agrupado.getOrDefault(semestre, List.of());
             resultado.add(new SemesterHistoryEntry(semestre, suspendido, cursos));
@@ -350,6 +357,16 @@ public class StudentServiceImpl implements StudentService {
     public void resetAcademicHistory(Long userId) {
         horarioAlumnoRepository.deleteByIdAlumno(userId);
         alumnoSemestreRepository.deleteByIdAlumno(userId);
+    }
+
+    // Orden cronologico real de un semestre: 1er ciclo, 2do ciclo, luego verano
+    // (-0, que cae a fin de anio, no al inicio como sugeriria el numero).
+    private static int ordenSemestre(String semestre) {
+        String[] partes = semestre.split("-");
+        int anio = Integer.parseInt(partes[0]);
+        int ciclo = Integer.parseInt(partes[1]);
+        int ordenCiclo = ciclo == 1 ? 0 : ciclo == 2 ? 1 : 2;
+        return anio * 3 + ordenCiclo;
     }
 
     private Curso obtenerCurso(Map<Long, Curso> cache, Long id) {
