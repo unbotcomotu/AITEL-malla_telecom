@@ -248,7 +248,7 @@ public class StudentServiceImpl implements StudentService {
 
                 if (!cumplido) {
                     String nombrePrereq = obtenerNombreCurso(prereq.getSource());
-                    errores.add("No cumples el prerrequisito: " + nombrePrereq);
+                    errores.add("No cumples el prerrequisito de " + curso.getName() + ": " + nombrePrereq);
                 }
             }
         }
