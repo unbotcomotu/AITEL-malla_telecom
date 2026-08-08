@@ -1,5 +1,5 @@
 /* Importar estilos de ReactFlow */
-@import 'reactflow/dist/style.css';
+@import '@xyflow/react/dist/style.css';
 
 /* @import (no los 3 @tailwind sueltos de v3) para que cargue tambien la
    escala de diseño por defecto (spacing, radios, etc.) y no solo el motor

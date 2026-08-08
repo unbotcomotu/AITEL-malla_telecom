@@ -746,15 +746,19 @@ const SubcategoryGroup = ({
   onRemoveCourse,
 }) => {
   const isCompleted = approvedCount >= subcategory.requiredCourses;
+  // "Completado" ya no bloquea el grupo: un elective cumplido igual puede
+  // seguir teniendo cursos sin tomar que al alumno le interese llevar
+  // igual, aunque ya no le cuenten para el requisito.
+  const hasMoreCourses = subcategory.courses.length > 0;
 
   return (
     <div className="mb-4">
       <button
         onClick={onToggle}
-        disabled={isCompleted}
+        disabled={isCompleted && !hasMoreCourses}
         className={`flex w-full items-center justify-between rounded-xl border px-4 py-4 text-left text-base font-semibold transition-colors ${
           isCompleted
-            ? 'cursor-not-allowed border-good/30 bg-good/10 text-good opacity-70'
+            ? `border-good/30 bg-good/10 text-good ${hasMoreCourses ? '' : 'cursor-not-allowed opacity-70'}`
             : elective
               ? 'border-accent-deep/30 bg-accent-deep/10 text-accent-deep'
               : 'border-line bg-surface-2 text-ink'
@@ -767,7 +771,7 @@ const SubcategoryGroup = ({
           </div>
           <div className="mt-1 text-xs opacity-80">
             {isCompleted ? (
-              `Completado (${approvedCount}/${subcategory.requiredCourses})`
+              `Completado (${approvedCount}/${subcategory.requiredCourses})${hasMoreCourses ? ' • puedes llevar más cursos igual' : ''}`
             ) : (
               <>
                 {subcategory.requiresAll
@@ -782,7 +786,7 @@ const SubcategoryGroup = ({
         <span className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
       </button>
 
-      {isOpen && !isCompleted && (
+      {isOpen && (isCompleted ? hasMoreCourses : true) && (
         <div className="mt-3 rounded-xl border border-line bg-bg p-4">
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
             {subcategory.courses.map(course => (

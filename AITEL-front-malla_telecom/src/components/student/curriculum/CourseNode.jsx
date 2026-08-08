@@ -1,5 +1,5 @@
 import React from 'react';
-import { Handle, Position } from 'reactflow';
+import { Handle, Position } from '@xyflow/react';
 
 const STATUS_STYLES = {
   approved: 'bg-good border-good text-ink-on-accent',

@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import ReactFlow, {
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  ReactFlow,
   ReactFlowProvider,
   useNodesState,
   useEdgesState,
@@ -7,8 +8,8 @@ import ReactFlow, {
   Controls,
   Background,
   MiniMap,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 
 import { checkPrerequisites, getCourseStatus } from '../../../utils/prerequisiteUtils.js';
 import CourseNode from './CourseNode.jsx';
@@ -119,6 +120,14 @@ function CurriculumView() {
       return {
         id: node.id,
         type: 'courseNode',
+        // CourseNode siempre mide 140x140 (circulo fijo, ver CourseNode.jsx).
+        // Se declara explicito en vez de depender de que ReactFlow lo mida
+        // solo via ResizeObserver - en algunos entornos (pestaña en segundo
+        // plano, ciertos navegadores) ese primer callback nunca llega, y sin
+        // dimensiones "nodesInitialized" nunca se vuelve true: toda la malla
+        // queda con visibility:hidden aunque los nodos esten bien renderizados.
+        width: 140,
+        height: 140,
         position: {
           x: node.cycle * 300,
           y: nodeIndexInCycle * 180 + 50
@@ -176,14 +185,21 @@ function CurriculumView() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutedEdges);
+  const reactFlowInstance = useRef(null);
 
   // useNodesState/useEdgesState solo toman su valor inicial una vez; sin este
   // efecto, el grafo queda vacío la primera vez porque layoutedNodes/Edges
   // se recalculan de forma asincrona (recien cuando termina de cargar
   // curriculumData) y nunca se copian al estado real que consume ReactFlow.
+  // El prop "fitView" solo encuadra la vista en el montaje inicial (sin nodos
+  // todavia); como estos llegan despues via fetch, hay que volver a llamar
+  // fitView imperativamente una vez que los nodos reales ya estan en el DOM.
   useEffect(() => {
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
+    if (layoutedNodes.length > 0) {
+      requestAnimationFrame(() => reactFlowInstance.current?.fitView());
+    }
   }, [layoutedNodes, layoutedEdges, setNodes, setEdges]);
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
@@ -292,9 +308,10 @@ function CurriculumView() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onInit={(instance) => { reactFlowInstance.current = instance; }}
             nodeTypes={nodeTypes}
             fitView
-            minZoom={0.3}
+            minZoom={0.05}
             maxZoom={1.5}
             defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
             style={{ background: 'var(--t-bg)' }}
