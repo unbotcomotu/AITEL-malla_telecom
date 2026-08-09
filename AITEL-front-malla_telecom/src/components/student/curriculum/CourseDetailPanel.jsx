@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import PrerequisitesPanel from './PrerequisitesPanel.jsx';
+import DifficultyMeter from './DifficultyMeter.jsx';
 import { useAuth } from '../../../contexts/AuthContext.jsx';
 import { RatingsApi } from '../../../services/student/ratingsApi.js';
 import { CommentsApi } from '../../../services/student/commentsApi.js';
+import { DifficultyApi } from '../../../services/student/difficultyApi.js';
 import { CourseScheduleApi } from '../../../services/student/courseScheduleApi.js';
 
 const CARD = 'mb-6 rounded-xl bg-surface-2 p-4';
@@ -31,6 +33,9 @@ const CourseDetailPanel = ({
 
   const [ratingSummary, setRatingSummary] = useState(null);
   const [myRating, setMyRating] = useState(0);
+  const [difficultySummary, setDifficultySummary] = useState(null);
+  // 0 = sin limite. Solo aplica cuando no se fijo un ciclo concreto.
+  const [lastSemesters, setLastSemesters] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -64,16 +69,17 @@ const CourseDetailPanel = ({
     if (course && isOpen) {
       loadComments();
       loadRatingSummary();
+      loadDifficultySummary();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCycle, selectedSchedule, sortBy, course, isOpen]);
+  }, [selectedCycle, selectedSchedule, sortBy, lastSemesters, course, isOpen]);
 
   const loadComments = async () => {
     setCommentsLoading(true);
     setError(null);
 
     try {
-      const data = await CommentsApi.getComments(course.id, selectedCycle, selectedSchedule);
+      const data = await CommentsApi.getComments(course.id, selectedCycle, selectedSchedule, lastSemesters);
 
       let sortedComments = [...data];
       if (sortBy === 'top_rated') {
@@ -96,6 +102,38 @@ const CourseDetailPanel = ({
       setRatingSummary(summary);
     } catch (err) {
       console.error('Error al cargar la calificación:', err);
+    }
+  };
+
+  const loadDifficultySummary = async () => {
+    try {
+      const summary = await DifficultyApi.getSummary(course.id, {
+        cycle: selectedCycle,
+        scheduleId: selectedSchedule,
+        lastSemesters
+      });
+      setDifficultySummary(summary);
+    } catch (err) {
+      console.error('Error al cargar la dificultad:', err);
+    }
+  };
+
+  const handleDifficultyRate = async (rating) => {
+    if (!canInteract) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const summary = await DifficultyApi.rate(course.id, {
+        cycle: selectedCycle,
+        scheduleId: selectedSchedule,
+        rating
+      });
+      setDifficultySummary(summary);
+    } catch (err) {
+      setError(`Error al calificar la dificultad: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -490,12 +528,32 @@ const CourseDetailPanel = ({
             </div>
 
             {availableSchedules.length > 1 && (
-              <div>
+              <div className="mb-3">
                 <label className="mb-1.5 block text-sm text-muted">Horario</label>
                 <select value={selectedSchedule} onChange={(e) => setSelectedSchedule(e.target.value)} className={SELECT_CLASS}>
                   {availableSchedules.map((schedule, index) => (
                     <option key={schedule.key} value={schedule.key}>Horario {index + 1}: {schedule.schedule}</option>
                   ))}
+                </select>
+              </div>
+            )}
+
+            {/* Solo tiene sentido cuando no se fijo un ciclo concreto: si ya
+                elegiste "2025-2", acotar a los ultimos N no cambia nada. */}
+            {selectedCycle === 'Todos' && (
+              <div>
+                <label className="mb-1.5 block text-sm text-muted">Antigüedad</label>
+                <select
+                  value={lastSemesters}
+                  onChange={(e) => setLastSemesters(Number(e.target.value))}
+                  className={SELECT_CLASS}
+                >
+                  <option value={0}>Todos los semestres</option>
+                  <option value={1}>Último semestre</option>
+                  <option value={2}>Últimos 2 semestres</option>
+                  <option value={3}>Últimos 3 semestres</option>
+                  <option value={5}>Últimos 5 semestres</option>
+                  <option value={10}>Últimos 10 semestres</option>
                 </select>
               </div>
             )}
@@ -591,6 +649,14 @@ const CourseDetailPanel = ({
             <div className="text-xs text-accent">Tu calificación: {myRating}/5 ⭐</div>
           )}
         </div>
+
+        {/* Dificultad: medidor aparte de la calificacion por estrellas */}
+        <DifficultyMeter
+          summary={difficultySummary}
+          canInteract={canInteract}
+          loading={loading}
+          onRate={handleDifficultyRate}
+        />
 
         {/* Foro de Comentarios */}
         <div className={CARD}>

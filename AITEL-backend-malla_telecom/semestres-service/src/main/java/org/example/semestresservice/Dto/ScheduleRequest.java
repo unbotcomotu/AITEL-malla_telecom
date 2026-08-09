@@ -7,7 +7,17 @@ import java.util.List;
 public class ScheduleRequest {
     /** Codigo de la seccion, p.ej. "0401". */
     private String schedule;
+    /** Codigo de la seccion de clase a la que se ata esta (columna "Hor. Aso"). */
+    private String associatedSchedule;
     private TipoHorario type;
+
+    public String getAssociatedSchedule() {
+        return associatedSchedule;
+    }
+
+    public void setAssociatedSchedule(String associatedSchedule) {
+        this.associatedSchedule = associatedSchedule;
+    }
     private List<Long> professorIds;
     private List<BloqueRequest> blocks;
 

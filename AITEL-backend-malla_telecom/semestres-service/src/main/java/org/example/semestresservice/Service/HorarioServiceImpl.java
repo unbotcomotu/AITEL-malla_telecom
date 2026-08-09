@@ -85,6 +85,7 @@ public class HorarioServiceImpl implements HorarioService {
         horario.setSemestre(semestre);
         horario.setHorario(request.getSchedule());
         horario.setTipo(request.getType() == null ? TipoHorario.CLASE : request.getType());
+        horario.setHorarioAsociado(request.getAssociatedSchedule());
         asignarProfesores(horario, request.getProfessorIds());
         asignarBloques(horario, request.getBlocks());
 
@@ -100,6 +101,9 @@ public class HorarioServiceImpl implements HorarioService {
         }
         if (request.getType() != null) {
             horario.setTipo(request.getType());
+        }
+        if (request.getAssociatedSchedule() != null) {
+            horario.setHorarioAsociado(request.getAssociatedSchedule());
         }
         if (request.getProfessorIds() != null) {
             horario.getHorarioProfesores().clear();
@@ -203,6 +207,7 @@ public class HorarioServiceImpl implements HorarioService {
                 horario.getIdCurso(),
                 horario.getSemestre().getSemestre(),
                 horario.getHorario(),
+                horario.getHorarioAsociado(),
                 horario.getTipo(),
                 bloques,
                 profesores,

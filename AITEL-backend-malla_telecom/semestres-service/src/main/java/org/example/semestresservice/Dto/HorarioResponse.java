@@ -9,23 +9,29 @@ public class HorarioResponse {
     private Long courseId;
     private String cycle;
     private String schedule;
+    private String associatedSchedule;
     private TipoHorario type;
     private String typeLabel;
     private List<BloqueResponse> blocks;
     private List<ProfesorResumen> professors;
     private int studentsCount;
 
-    public HorarioResponse(Long id, Long courseId, String cycle, String schedule, TipoHorario type,
-                            List<BloqueResponse> blocks, List<ProfesorResumen> professors, int studentsCount) {
+    public HorarioResponse(Long id, Long courseId, String cycle, String schedule, String associatedSchedule,
+                            TipoHorario type, List<BloqueResponse> blocks, List<ProfesorResumen> professors, int studentsCount) {
         this.id = id;
         this.courseId = courseId;
         this.cycle = cycle;
         this.schedule = schedule;
+        this.associatedSchedule = associatedSchedule;
         this.type = type;
         this.typeLabel = type == null ? null : type.getEtiqueta();
         this.blocks = blocks;
         this.professors = professors;
         this.studentsCount = studentsCount;
+    }
+
+    public String getAssociatedSchedule() {
+        return associatedSchedule;
     }
 
     public Long getId() {

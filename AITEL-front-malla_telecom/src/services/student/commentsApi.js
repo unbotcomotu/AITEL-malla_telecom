@@ -8,11 +8,14 @@ const toScheduleId = (scheduleId) => {
 };
 
 export const CommentsApi = {
-  // Obtener comentarios por curso, ciclo y horario
-  async getComments(courseId, cycle, scheduleId) {
+  // Obtener comentarios por curso, ciclo y horario.
+  // lastSemesters acota a los N semestres mas recientes; el backend lo ignora
+  // si ya se pidio un ciclo concreto.
+  async getComments(courseId, cycle, scheduleId, lastSemesters) {
     const schedule = toScheduleId(scheduleId);
     const params = new URLSearchParams({ cycle });
     if (schedule !== null) params.set('schedule', schedule);
+    if (lastSemesters) params.set('lastSemesters', lastSemesters);
 
     const response = await fetch(`/api/courses/${courseId}/comments?${params.toString()}`);
     if (!response.ok) {

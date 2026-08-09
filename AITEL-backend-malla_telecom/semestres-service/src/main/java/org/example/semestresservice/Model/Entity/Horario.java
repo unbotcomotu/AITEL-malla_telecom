@@ -40,6 +40,12 @@ public class Horario {
     @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20) NOT NULL DEFAULT 'CLASE'")
     private TipoHorario tipo = TipoHorario.CLASE;
 
+    // Columna "Hor. Aso" del campus: codigo de la seccion de clase a la que
+    // esta atada esta seccion. Solo algunos cursos la usan; cuando viene vacia,
+    // el alumno puede combinar cualquier laboratorio con cualquier clase.
+    @Column(name = "horario_asociado", length = 10)
+    private String horarioAsociado;
+
     @OneToMany(mappedBy = "horario", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     private List<BloqueHorario> bloques = new ArrayList<>();
 
@@ -101,6 +107,14 @@ public class Horario {
 
     public void setTipo(TipoHorario tipo) {
         this.tipo = tipo;
+    }
+
+    public String getHorarioAsociado() {
+        return horarioAsociado;
+    }
+
+    public void setHorarioAsociado(String horarioAsociado) {
+        this.horarioAsociado = horarioAsociado;
     }
 
     public List<BloqueHorario> getBloques() {
