@@ -1,5 +1,6 @@
 import React from 'react';
 import ThemeSwitcher from './ThemeSwitcher';
+import AitelLogo from './AitelLogo';
 
 const Header = ({ user, onMenuClick, onLogout }) => {
   return (
@@ -13,9 +14,12 @@ const Header = ({ user, onMenuClick, onLogout }) => {
           ☰
         </button>
 
-        <h1 className="m-0 font-display text-xl font-bold tracking-tight">
-          Matricula<span className="text-accent">TEL</span>
-        </h1>
+        <div className="flex items-center gap-2.5">
+          <AitelLogo className="h-8 w-auto" />
+          <h1 className="m-0 font-display text-xl font-bold tracking-tight">
+            Matricula<span className="text-accent">TEL</span>
+          </h1>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import AitelLogo from './AitelLogo';
 
 const Sidebar = ({ isOpen, onClose, user, currentPath }) => {
   const navigate = useNavigate();
@@ -44,11 +45,16 @@ const Sidebar = ({ isOpen, onClose, user, currentPath }) => {
       >
         {/* Header del sidebar */}
         <div className="border-b border-line px-6 py-6">
-          <div className="font-display text-lg font-bold">
-            Matricula<span className="text-accent">TEL</span>
-          </div>
-          <div className="mt-2 text-sm text-muted">
-            {user?.role === 'admin' ? 'Administrador' : 'Estudiante'}
+          <div className="flex items-center gap-3">
+            <AitelLogo className="h-10 w-auto" />
+            <div>
+              <div className="font-display text-lg font-bold leading-tight">
+                Matricula<span className="text-accent">TEL</span>
+              </div>
+              <div className="mt-1 text-sm text-muted">
+                {user?.role === 'admin' ? 'Administrador' : 'Estudiante'}
+              </div>
+            </div>
           </div>
         </div>
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import ThemeSwitcher from '../common/ThemeSwitcher';
+import AitelLogo from '../common/AitelLogo';
 
 const FIELD_LABEL_CLASS = 'mb-2 block text-sm font-semibold text-muted';
 const FIELD_ERROR_CLASS = 'mt-1.5 text-xs text-bad';
@@ -148,21 +149,51 @@ const AuthView = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-bg p-5 text-ink">
-      <div className="absolute right-5 top-5">
-        <ThemeSwitcher />
-      </div>
+    <div className="relative min-h-screen bg-bg text-ink lg:grid lg:grid-cols-2">
+      {/* Panel de marca. Se oculta por debajo de lg: en pantallas angostas la
+          foto robaria toda la altura util y dejaria el formulario fuera de
+          vista, que es lo unico que el usuario vino a hacer. */}
+      <aside className="relative hidden lg:block">
+        <img
+          src="/marca/equipo.jpg"
+          alt="Equipo de estudiantes de AITEL"
+          className="absolute inset-0 h-full w-full select-none object-cover"
+          style={{ objectPosition: '53% 58%' }}
+          draggable="false"
+        />
+        {/* Velo oscuro: la foto es nocturna y con mucho detalle, sin esto el
+            texto encima se vuelve ilegible. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25" />
 
-      <div className="w-full max-w-[440px]">
-        {/* Encabezado */}
-        <div className="mb-8 text-center">
-          <h1 className="m-0 mb-2 font-display text-4xl font-bold tracking-tight">
-            Matricula<span className="text-accent">TEL</span>
-          </h1>
-          <p className="m-0 text-base text-muted">
-            Ingeniería de las Telecomunicaciones
+        <div className="relative flex h-full flex-col justify-end p-12">
+          {/* forceDark porque el panel es oscuro siempre, sin importar el tema */}
+          <AitelLogo variant="lockup" forceDark className="mb-6 w-full max-w-[420px]" />
+          <p className="max-w-md text-lg leading-relaxed text-white/90">
+            Planifica tu carrera, revisa tus prerrequisitos y comparte tu experiencia
+            con el resto de la especialidad.
           </p>
         </div>
+      </aside>
+
+      {/* Columna del formulario */}
+      <div className="relative flex min-h-screen items-center justify-center p-5 lg:min-h-0">
+        <div className="absolute right-5 top-5">
+          <ThemeSwitcher />
+        </div>
+
+        <div className="w-full max-w-[440px]">
+          {/* Encabezado */}
+          <div className="mb-8 text-center">
+            {/* En pantallas angostas no hay panel de marca, asi que el isotipo
+                aparece aca para que el login no quede sin identidad. */}
+            <AitelLogo className="mx-auto mb-4 h-14 w-auto lg:hidden" />
+            <h1 className="m-0 mb-2 font-display text-4xl font-bold tracking-tight">
+              Matricula<span className="text-accent">TEL</span>
+            </h1>
+            <p className="m-0 text-base text-muted">
+              Ingeniería de las Telecomunicaciones
+            </p>
+          </div>
 
         {/* Tarjeta principal */}
         <div className="overflow-hidden rounded-lg border border-line bg-surface">
@@ -373,6 +404,7 @@ const AuthView = () => {
                 </div>
               )}
             </form>
+            </div>
           </div>
         </div>
       </div>
