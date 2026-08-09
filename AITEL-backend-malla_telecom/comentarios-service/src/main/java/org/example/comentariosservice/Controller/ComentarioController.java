@@ -24,8 +24,9 @@ public class ComentarioController {
     @GetMapping
     public ResponseEntity<List<CommentResponse>> getComments(@PathVariable Long cursoId,
                                                                @RequestParam(value = "cycle", required = false) String cycle,
-                                                               @RequestParam(value = "schedule", required = false) Long schedule) {
-        return ResponseEntity.ok(comentarioService.getComments(cursoId, cycle, schedule));
+                                                               @RequestParam(value = "schedule", required = false) Long schedule,
+                                                               @RequestParam(value = "lastSemesters", required = false) Integer lastSemesters) {
+        return ResponseEntity.ok(comentarioService.getComments(cursoId, cycle, schedule, lastSemesters));
     }
 
     @PostMapping

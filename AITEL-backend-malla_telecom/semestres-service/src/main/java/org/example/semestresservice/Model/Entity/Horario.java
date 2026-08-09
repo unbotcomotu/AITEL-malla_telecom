@@ -3,6 +3,7 @@ package org.example.semestresservice.Model.Entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import org.example.semestresservice.Model.Curso;
+import org.example.semestresservice.Model.TipoHorario;
 import org.example.semestresservice.Model.Usuario;
 
 import java.util.ArrayList;
@@ -30,8 +31,20 @@ public class Horario {
     @Column(nullable = false, length = 10)
     private String horario;
 
+    // Clase / Practica / Examen. Un curso tiene una seccion por cada tipo y el
+    // alumno se enlaza a las que llevo (ver AlumnoHorario).
+    // columnDefinition con DEFAULT para que, al agregar la columna sobre una
+    // tabla que ya tiene secciones, MySQL las rellene como CLASE en vez de
+    // dejarlas en blanco (un valor vacio no mapea al enum y romperia la lectura).
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20) NOT NULL DEFAULT 'CLASE'")
+    private TipoHorario tipo = TipoHorario.CLASE;
+
     @OneToMany(mappedBy = "horario", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
-    private List<HorarioAlumno> horarioAlumnos = new ArrayList<>();
+    private List<BloqueHorario> bloques = new ArrayList<>();
+
+    @OneToMany(mappedBy = "horario", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<MatriculaHorario> matriculas = new ArrayList<>();
 
     @Transient
     private List<Usuario> alumnos;
@@ -82,12 +95,28 @@ public class Horario {
         this.horario = horario;
     }
 
-    public List<HorarioAlumno> getHorarioAlumnos() {
-        return horarioAlumnos;
+    public TipoHorario getTipo() {
+        return tipo;
     }
 
-    public void setHorarioAlumnos(List<HorarioAlumno> horarioAlumnos) {
-        this.horarioAlumnos = horarioAlumnos;
+    public void setTipo(TipoHorario tipo) {
+        this.tipo = tipo;
+    }
+
+    public List<BloqueHorario> getBloques() {
+        return bloques;
+    }
+
+    public void setBloques(List<BloqueHorario> bloques) {
+        this.bloques = bloques;
+    }
+
+    public List<MatriculaHorario> getMatriculas() {
+        return matriculas;
+    }
+
+    public void setMatriculas(List<MatriculaHorario> matriculas) {
+        this.matriculas = matriculas;
     }
 
     public List<Usuario> getAlumnos() {

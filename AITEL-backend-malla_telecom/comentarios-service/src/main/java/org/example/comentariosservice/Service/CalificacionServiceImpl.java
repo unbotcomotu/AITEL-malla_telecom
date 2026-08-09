@@ -4,6 +4,7 @@ import org.example.comentariosservice.Dto.RatingRequest;
 import org.example.comentariosservice.Dto.RatingSummaryResponse;
 import org.example.comentariosservice.Exception.ApiException;
 import org.example.comentariosservice.Model.Entity.Calificacion;
+import org.example.comentariosservice.Model.Semestres;
 import org.example.comentariosservice.Repository.CalificacionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -14,8 +15,6 @@ import java.util.List;
 
 @Service
 public class CalificacionServiceImpl implements CalificacionService {
-
-    private static final String CICLO_GENERAL = "Todos";
 
     private final CalificacionRepository calificacionRepository;
 
@@ -30,7 +29,7 @@ public class CalificacionServiceImpl implements CalificacionService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "La calificacion debe estar entre 1 y 5.");
         }
 
-        String ciclo = request.getCycle() == null || request.getCycle().isBlank() ? CICLO_GENERAL : request.getCycle();
+        String ciclo = Semestres.esGeneral(request.getCycle()) ? Semestres.GENERAL : request.getCycle();
 
         Calificacion calificacion = calificacionRepository
                 .findExistente(cursoId, ciclo, request.getScheduleId(), userId)

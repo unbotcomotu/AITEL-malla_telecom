@@ -35,9 +35,20 @@ public class RegisterSemesterRequest {
         private Long courseId;
         private Long grade;
         private Boolean exception;
+        // Secciones que el alumno dice haber llevado (clase, practica, examen).
+        // Opcional: si viene null o vacia, la matricula queda "general".
+        private List<Long> scheduleIds;
 
         public Long getCourseId() {
             return courseId;
+        }
+
+        public List<Long> getScheduleIds() {
+            return scheduleIds;
+        }
+
+        public void setScheduleIds(List<Long> scheduleIds) {
+            this.scheduleIds = scheduleIds;
         }
 
         public void setCourseId(Long courseId) {

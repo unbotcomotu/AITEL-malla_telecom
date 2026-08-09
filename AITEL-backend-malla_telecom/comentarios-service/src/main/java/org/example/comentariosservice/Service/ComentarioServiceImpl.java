@@ -9,6 +9,7 @@ import org.example.comentariosservice.Exception.ApiException;
 import org.example.comentariosservice.Model.Entity.Comentario;
 import org.example.comentariosservice.Model.Entity.ComentarioReaccion;
 import org.example.comentariosservice.Model.Entity.ComentarioReporte;
+import org.example.comentariosservice.Model.Semestres;
 import org.example.comentariosservice.Model.TipoReaccion;
 import org.example.comentariosservice.Repository.ComentarioReaccionRepository;
 import org.example.comentariosservice.Repository.ComentarioReporteRepository;
@@ -21,12 +22,11 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class ComentarioServiceImpl implements ComentarioService {
-
-    private static final String CICLO_GENERAL = "Todos";
 
     private final ComentarioRepository comentarioRepository;
     private final ComentarioReaccionRepository reaccionRepository;
@@ -45,12 +45,30 @@ public class ComentarioServiceImpl implements ComentarioService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CommentResponse> getComments(Long cursoId, String cycle, Long scheduleId) {
-        String cicloEfectivo = (cycle == null || cycle.isBlank()) ? CICLO_GENERAL : cycle;
+    public List<CommentResponse> getComments(Long cursoId, String cycle, Long scheduleId, Integer lastSemesters) {
+        // Se parte del hilo completo del curso y se va recortando. Antes se
+        // consultaba directo por ciclo, lo que dejaba fuera todo lo que no
+        // fuera del pseudo-ciclo "Todos" en la vista por defecto: comentar sin
+        // horario es libre, asi que sin filtros hay que mostrarlo todo.
+        List<Comentario> comentarios = comentarioRepository.findByIdCursoOrderByFechaCreacionAsc(cursoId);
 
-        List<Comentario> comentarios = scheduleId == null
-                ? comentarioRepository.findByIdCursoAndCicloAcademicoOrderByFechaCreacionAsc(cursoId, cicloEfectivo)
-                : comentarioRepository.findByIdCursoAndCicloAcademicoAndIdHorarioOrderByFechaCreacionAsc(cursoId, cicloEfectivo, scheduleId);
+        if (!Semestres.esGeneral(cycle)) {
+            comentarios = comentarios.stream()
+                    .filter(c -> cycle.equals(c.getCicloAcademico()))
+                    .toList();
+        } else if (lastSemesters != null && lastSemesters > 0) {
+            Set<String> recientes = Semestres.ultimos(
+                    comentarios.stream().map(Comentario::getCicloAcademico).toList(), lastSemesters);
+            comentarios = comentarios.stream()
+                    .filter(c -> recientes.contains(c.getCicloAcademico()))
+                    .toList();
+        }
+
+        if (scheduleId != null) {
+            comentarios = comentarios.stream()
+                    .filter(c -> scheduleId.equals(c.getIdHorario()))
+                    .toList();
+        }
 
         if (comentarios.isEmpty()) {
             return List.of();
@@ -75,7 +93,7 @@ public class ComentarioServiceImpl implements ComentarioService {
 
         Comentario comentario = new Comentario();
         comentario.setIdCurso(cursoId);
-        comentario.setCicloAcademico(request.getCycle() == null || request.getCycle().isBlank() ? CICLO_GENERAL : request.getCycle());
+        comentario.setCicloAcademico(Semestres.esGeneral(request.getCycle()) ? Semestres.GENERAL : request.getCycle());
         comentario.setIdHorario(request.getScheduleId());
         comentario.setIdUsuario(userId);
         comentario.setAutorNombre(obtenerNombreUsuario(userId));

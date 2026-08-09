@@ -315,7 +315,16 @@ const AuthView = () => {
                       className="mr-3 h-[18px] w-[18px] accent-accent"
                     />
                     Acepto los{' '}
-                    <span className="ml-1 text-accent underline">términos y condiciones</span>
+                    {/* Placeholder temporal hasta que existan los terminos reales.
+                        stopPropagation + preventDefault porque el enlace vive dentro
+                        del <label> de la casilla: sin eso, abrirlo tambien la marcaria. */}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert('No seas sapo 👀'); }}
+                      className="ml-1 text-accent underline"
+                    >
+                      términos y condiciones
+                    </button>
                   </label>
                   {errors.acceptTerms && <p className={`${FIELD_ERROR_CLASS} ml-[30px]`}>{errors.acceptTerms}</p>}
                 </div>

@@ -9,4 +9,6 @@ public interface ComentarioRepository extends JpaRepository<Comentario, Long> {
     List<Comentario> findByIdCursoAndCicloAcademicoOrderByFechaCreacionAsc(Long idCurso, String cicloAcademico);
 
     List<Comentario> findByIdCursoAndCicloAcademicoAndIdHorarioOrderByFechaCreacionAsc(Long idCurso, String cicloAcademico, Long idHorario);
+
+    List<Comentario> findByIdCursoOrderByFechaCreacionAsc(Long idCurso);
 }

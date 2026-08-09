@@ -3,12 +3,12 @@ import { SemestersApi } from '../../services/admin/semestersApi';
 
 const INPUT_CLASS = 'w-full rounded-lg border border-line bg-bg px-4 py-3 text-sm text-ink outline-none focus:border-accent';
 
-// Mismo orden cronológico real que usa el registro de cursos del alumno:
-// 1er ciclo, 2do ciclo, luego verano (-0, que cae a fin de año).
+// Mismo orden cronológico que usa el registro de cursos del alumno: el verano
+// (-0) va enero-febrero, al INICIO del año (2024-0 → 2024-1 → 2024-2), que es
+// el orden numérico natural del ciclo.
 const semesterOrderKey = (semester) => {
   const [year, cycle] = semester.split('-').map(Number);
-  const cycleOrder = cycle === 1 ? 0 : cycle === 2 ? 1 : 2;
-  return year * 3 + cycleOrder;
+  return year * 3 + cycle;
 };
 
 const SemesterManagement = () => {

@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 /**
  * Registra que un alumno "vivio" un semestre (periodo academico), haya o no
  * llevado cursos en el — necesario para semestres suspendidos, que de otro
- * modo no dejan ningun rastro (HorarioAlumno solo existe si hay matricula).
+ * modo no dejan ningun rastro (MatriculaAlumno solo existe si hay cursos).
  */
 @Entity
 @Table(name = "alumno_semestre", uniqueConstraints = @UniqueConstraint(columnNames = {"id_alumno", "id_semestre"}))

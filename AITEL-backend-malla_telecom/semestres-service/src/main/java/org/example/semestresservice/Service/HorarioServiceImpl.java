@@ -1,13 +1,16 @@
 package org.example.semestresservice.Service;
 
 import org.example.semestresservice.Client.UsuarioServiceClient;
+import org.example.semestresservice.Dto.BloqueResponse;
 import org.example.semestresservice.Dto.HorarioResponse;
 import org.example.semestresservice.Dto.ProfesorResumen;
 import org.example.semestresservice.Dto.ScheduleRequest;
 import org.example.semestresservice.Exception.ApiException;
+import org.example.semestresservice.Model.Entity.BloqueHorario;
 import org.example.semestresservice.Model.Entity.Horario;
 import org.example.semestresservice.Model.Entity.HorarioProfesor;
 import org.example.semestresservice.Model.Entity.Semestre;
+import org.example.semestresservice.Model.TipoHorario;
 import org.example.semestresservice.Model.Usuario;
 import org.example.semestresservice.Repository.HorarioRepository;
 import org.example.semestresservice.Repository.SemestreRepository;
@@ -15,7 +18,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +84,9 @@ public class HorarioServiceImpl implements HorarioService {
         horario.setIdCurso(courseId);
         horario.setSemestre(semestre);
         horario.setHorario(request.getSchedule());
+        horario.setTipo(request.getType() == null ? TipoHorario.CLASE : request.getType());
         asignarProfesores(horario, request.getProfessorIds());
+        asignarBloques(horario, request.getBlocks());
 
         return toResponse(horarioRepository.save(horario));
     }
@@ -91,9 +98,16 @@ public class HorarioServiceImpl implements HorarioService {
         if (request.getSchedule() != null) {
             horario.setHorario(request.getSchedule());
         }
+        if (request.getType() != null) {
+            horario.setTipo(request.getType());
+        }
         if (request.getProfessorIds() != null) {
             horario.getHorarioProfesores().clear();
             asignarProfesores(horario, request.getProfessorIds());
+        }
+        if (request.getBlocks() != null) {
+            horario.getBloques().clear();
+            asignarBloques(horario, request.getBlocks());
         }
         return toResponse(horarioRepository.save(horario));
     }
@@ -112,6 +126,32 @@ public class HorarioServiceImpl implements HorarioService {
             resultado.add(createSchedule(courseId, cycle, request));
         }
         return resultado;
+    }
+
+    private void asignarBloques(Horario horario, List<ScheduleRequest.BloqueRequest> bloques) {
+        if (bloques == null) {
+            return;
+        }
+        for (ScheduleRequest.BloqueRequest peticion : bloques) {
+            if (peticion.getDay() == null || peticion.getStartTime() == null || peticion.getEndTime() == null) {
+                continue;
+            }
+            BloqueHorario bloque = new BloqueHorario();
+            bloque.setHorario(horario);
+            bloque.setDia(peticion.getDay());
+            bloque.setHoraInicio(parsearHora(peticion.getStartTime()));
+            bloque.setHoraFin(parsearHora(peticion.getEndTime()));
+            bloque.setAula(peticion.getClassroom());
+            horario.getBloques().add(bloque);
+        }
+    }
+
+    private LocalTime parsearHora(String valor) {
+        try {
+            return LocalTime.parse(valor.trim().length() == 5 ? valor.trim() : valor.trim().substring(0, 5));
+        } catch (Exception e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Hora inválida: " + valor + " (se espera HH:mm).");
+        }
     }
 
     private void asignarProfesores(Horario horario, List<Long> professorIds) {
@@ -152,13 +192,21 @@ public class HorarioServiceImpl implements HorarioService {
                 })
                 .toList();
 
+        List<BloqueResponse> bloques = horario.getBloques().stream()
+                .sorted(Comparator.comparing(BloqueHorario::getDia)
+                        .thenComparing(BloqueHorario::getHoraInicio))
+                .map(b -> new BloqueResponse(b.getId(), b.getDia(), b.getHoraInicio(), b.getHoraFin(), b.getAula()))
+                .toList();
+
         return new HorarioResponse(
                 horario.getId(),
                 horario.getIdCurso(),
                 horario.getSemestre().getSemestre(),
                 horario.getHorario(),
+                horario.getTipo(),
+                bloques,
                 profesores,
-                horario.getHorarioAlumnos().size()
+                horario.getMatriculas().size()
         );
     }
 }

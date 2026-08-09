@@ -28,7 +28,7 @@ spring:
             - id: comentarios-service
               uri: ${COMENTARIOS_SERVICE_URL:http://localhost:8004}
               predicates:
-                - Path=/api/courses/*/comments/**,/api/courses/*/ratings/**,/api/courses/*/ratings
+                - Path=/api/courses/*/comments/**,/api/courses/*/ratings/**,/api/courses/*/ratings,/api/courses/*/difficulty/**,/api/courses/*/difficulty
               filters:
                 - StripPrefix=1
 

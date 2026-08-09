@@ -9,7 +9,13 @@ import java.util.List;
 
 public interface ComentarioService {
 
-    List<CommentResponse> getComments(Long cursoId, String cycle, Long scheduleId);
+    /**
+     * @param cycle         ciclo exacto, o null/"Todos" para no filtrar por ciclo
+     * @param scheduleId    seccion concreta, o null para no filtrar
+     * @param lastSemesters solo los N semestres mas recientes; se ignora si ya
+     *                      se pidio un ciclo exacto
+     */
+    List<CommentResponse> getComments(Long cursoId, String cycle, Long scheduleId, Integer lastSemesters);
 
     CommentResponse createComment(Long cursoId, Long userId, CreateCommentRequest request);
 

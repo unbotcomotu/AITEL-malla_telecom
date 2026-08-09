@@ -6,6 +6,7 @@ import org.example.semestresservice.Dto.AcademicInfoResponse;
 import org.example.semestresservice.Dto.CourseHistoryEntry;
 import org.example.semestresservice.Dto.CurrentCourseResponse;
 import org.example.semestresservice.Dto.RegisterSemesterRequest;
+import org.example.semestresservice.Dto.SeccionResumen;
 import org.example.semestresservice.Dto.SemesterHistoryEntry;
 import org.example.semestresservice.Dto.ValidatePrerequisitesRequest;
 import org.example.semestresservice.Dto.ValidationResponse;
@@ -13,13 +14,15 @@ import org.example.semestresservice.Exception.ApiException;
 import org.example.semestresservice.Model.Curso;
 import org.example.semestresservice.Model.Entity.AlumnoSemestre;
 import org.example.semestresservice.Model.Entity.Horario;
-import org.example.semestresservice.Model.Entity.HorarioAlumno;
+import org.example.semestresservice.Model.Entity.MatriculaAlumno;
+import org.example.semestresservice.Model.Entity.MatriculaHorario;
 import org.example.semestresservice.Model.Entity.Semestre;
 import org.example.semestresservice.Model.PrerequisiteTypes;
+import org.example.semestresservice.Model.TipoHorario;
 import org.example.semestresservice.Model.Usuario;
 import org.example.semestresservice.Repository.AlumnoSemestreRepository;
-import org.example.semestresservice.Repository.HorarioAlumnoRepository;
 import org.example.semestresservice.Repository.HorarioRepository;
+import org.example.semestresservice.Repository.MatriculaAlumnoRepository;
 import org.example.semestresservice.Repository.SemestreRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -37,20 +40,20 @@ import java.util.Set;
 @Service
 public class StudentServiceImpl implements StudentService {
 
-    private final HorarioAlumnoRepository horarioAlumnoRepository;
+    private final MatriculaAlumnoRepository matriculaRepository;
     private final HorarioRepository horarioRepository;
     private final SemestreRepository semestreRepository;
     private final AlumnoSemestreRepository alumnoSemestreRepository;
     private final CursoServiceClient cursoServiceClient;
     private final UsuarioServiceClient usuarioServiceClient;
 
-    public StudentServiceImpl(HorarioAlumnoRepository horarioAlumnoRepository,
+    public StudentServiceImpl(MatriculaAlumnoRepository matriculaRepository,
                                HorarioRepository horarioRepository,
                                SemestreRepository semestreRepository,
                                AlumnoSemestreRepository alumnoSemestreRepository,
                                CursoServiceClient cursoServiceClient,
                                UsuarioServiceClient usuarioServiceClient) {
-        this.horarioAlumnoRepository = horarioAlumnoRepository;
+        this.matriculaRepository = matriculaRepository;
         this.horarioRepository = horarioRepository;
         this.semestreRepository = semestreRepository;
         this.alumnoSemestreRepository = alumnoSemestreRepository;
@@ -62,9 +65,9 @@ public class StudentServiceImpl implements StudentService {
     @Transactional(readOnly = true)
     public Map<Long, Long> getGrades(Long userId) {
         Map<Long, Long> grades = new LinkedHashMap<>();
-        for (HorarioAlumno registro : horarioAlumnoRepository.findByIdAlumno(userId)) {
+        for (MatriculaAlumno registro : matriculaRepository.findByIdAlumno(userId)) {
             if (registro.getNotaFinal() != null) {
-                grades.put(registro.getHorario().getIdCurso(), registro.getNotaFinal());
+                grades.put(registro.getIdCurso(), registro.getNotaFinal());
             }
         }
         return grades;
@@ -75,16 +78,17 @@ public class StudentServiceImpl implements StudentService {
     public List<CurrentCourseResponse> getCurrentCourses(Long userId) {
         Map<Long, Curso> cache = new HashMap<>();
         List<CurrentCourseResponse> resultado = new ArrayList<>();
-        for (HorarioAlumno registro : horarioAlumnoRepository.findByIdAlumno(userId)) {
-            Horario horario = registro.getHorario();
-            if (Boolean.TRUE.equals(horario.getSemestre().getActivo())) {
-                Curso curso = obtenerCurso(cache, horario.getIdCurso());
+        for (MatriculaAlumno registro : matriculaRepository.findByIdAlumno(userId)) {
+            if (Boolean.TRUE.equals(registro.getSemestre().getActivo())) {
+                Curso curso = obtenerCurso(cache, registro.getIdCurso());
                 resultado.add(new CurrentCourseResponse(
-                        horario.getIdCurso(),
+                        registro.getIdCurso(),
                         curso == null ? null : curso.getCode(),
                         curso == null ? null : curso.getName(),
                         curso == null ? null : curso.getCredits(),
-                        horario.getHorario()
+                        // El codigo de seccion solo existe si el alumno registro
+                        // su horario de clases (es opcional).
+                        codigoSeccionDeClase(registro)
                 ));
             }
         }
@@ -107,22 +111,10 @@ public class StudentServiceImpl implements StudentService {
         Map<Long, Curso> cache = new HashMap<>();
         Map<String, List<CourseHistoryEntry>> agrupado = new LinkedHashMap<>();
 
-        for (HorarioAlumno registro : horarioAlumnoRepository.findByIdAlumno(userId)) {
-            Horario horario = registro.getHorario();
-            String semestreNombre = horario.getSemestre().getSemestre();
-            Curso curso = obtenerCurso(cache, horario.getIdCurso());
-
-            CourseHistoryEntry entry = new CourseHistoryEntry(
-                    horario.getIdCurso(),
-                    curso == null ? null : curso.getCode(),
-                    curso == null ? null : curso.getName(),
-                    curso == null ? null : curso.getCredits(),
-                    registro.getNotaFinal(),
-                    Boolean.TRUE.equals(registro.getTieneExcepcion()),
-                    curso != null && curso.getSubcategoryId() != null && !Boolean.TRUE.equals(curso.getSubcategoryRequiresAll()),
-                    curso == null ? null : curso.getSubcategoryId()
-            );
-            agrupado.computeIfAbsent(semestreNombre, k -> new ArrayList<>()).add(entry);
+        for (MatriculaAlumno registro : matriculaRepository.findByIdAlumno(userId)) {
+            String semestreNombre = registro.getSemestre().getSemestre();
+            agrupado.computeIfAbsent(semestreNombre, k -> new ArrayList<>())
+                    .add(construirCourseEntry(cache, registro));
         }
 
         Map<String, Boolean> suspendidoPorSemestre = new LinkedHashMap<>();
@@ -171,8 +163,8 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getAvailableCoursesForSemester(Long userId, Long cycle) {
-        List<Long> aprobados = horarioAlumnoRepository.findByIdAlumnoAndAprobadoTrue(userId).stream()
-                .map(h -> h.getHorario().getIdCurso())
+        List<Long> aprobados = matriculaRepository.findByIdAlumnoAndAprobadoTrue(userId).stream()
+                .map(MatriculaAlumno::getIdCurso)
                 .toList();
 
         // Cursos que el alumno aun no aprueba (ni oculta la administracion), sin importar el ciclo:
@@ -235,7 +227,7 @@ public class StudentServiceImpl implements StudentService {
     @Transactional(readOnly = true)
     public ValidationResponse validatePrerequisites(Long userId, ValidatePrerequisitesRequest request) {
         Curso curso = cursoServiceClient.getCursoById(request.getCourseId());
-        List<HorarioAlumno> historial = horarioAlumnoRepository.findByIdAlumno(userId);
+        List<MatriculaAlumno> historial = matriculaRepository.findByIdAlumno(userId);
         List<Long> seleccionActual = request.getPreviousCourses() == null ? List.of() : request.getPreviousCourses();
 
         List<String> errores = new ArrayList<>();
@@ -243,12 +235,12 @@ public class StudentServiceImpl implements StudentService {
             for (Curso.Prerequisite prereq : curso.getPrerequisites()) {
                 boolean cumplido = switch (prereq.getType()) {
                     case PrerequisiteTypes.APPROVED -> historial.stream().anyMatch(h ->
-                            h.getHorario().getIdCurso().equals(prereq.getSource()) && Boolean.TRUE.equals(h.getAprobado()));
+                            h.getIdCurso().equals(prereq.getSource()) && Boolean.TRUE.equals(h.getAprobado()));
                     case PrerequisiteTypes.MIN_GRADE -> historial.stream().anyMatch(h ->
-                            h.getHorario().getIdCurso().equals(prereq.getSource()) && h.getNotaFinal() != null
+                            h.getIdCurso().equals(prereq.getSource()) && h.getNotaFinal() != null
                                     && prereq.getMinGrade() != null && h.getNotaFinal() >= prereq.getMinGrade());
                     case PrerequisiteTypes.COREQUISITE -> seleccionActual.contains(prereq.getSource())
-                            || historial.stream().anyMatch(h -> h.getHorario().getIdCurso().equals(prereq.getSource())
+                            || historial.stream().anyMatch(h -> h.getIdCurso().equals(prereq.getSource())
                                     && Boolean.TRUE.equals(h.getAprobado()));
                     default -> true;
                 };
@@ -293,30 +285,24 @@ public class StudentServiceImpl implements StudentService {
                 if (seleccion.getCourseId() == null) {
                     continue;
                 }
-                // El registro retroactivo de historial no pide un horario/seccion especifico
-                // (no tiene sentido para semestres antiguos): se reutiliza o crea un Horario
-                // generico para ese curso+semestre.
-                Horario horario = horarioRepository.findByIdCursoAndSemestre_Semestre(seleccion.getCourseId(), semestre.getSemestre())
-                        .stream().findFirst()
+                MatriculaAlumno matricula = matriculaRepository
+                        .findByIdAlumnoAndIdCursoAndSemestre_Semestre(userId, seleccion.getCourseId(), semestre.getSemestre())
                         .orElseGet(() -> {
-                            Horario nuevo = new Horario();
-                            nuevo.setIdCurso(seleccion.getCourseId());
-                            nuevo.setSemestre(semestre);
-                            nuevo.setHorario("HIST");
-                            return horarioRepository.save(nuevo);
-                        });
-
-                HorarioAlumno matricula = horarioAlumnoRepository.findByHorario_IdAndIdAlumno(horario.getId(), userId)
-                        .orElseGet(() -> {
-                            HorarioAlumno nueva = new HorarioAlumno();
-                            nueva.setHorario(horario);
+                            MatriculaAlumno nueva = new MatriculaAlumno();
                             nueva.setIdAlumno(userId);
+                            nueva.setIdCurso(seleccion.getCourseId());
+                            nueva.setSemestre(semestre);
                             return nueva;
                         });
                 matricula.setNotaFinal(seleccion.getGrade());
                 matricula.setTieneExcepcion(Boolean.TRUE.equals(seleccion.getException()));
                 matricula.setAprobado(seleccion.getGrade() != null && seleccion.getGrade() >= 11);
-                horarioAlumnoRepository.save(matricula);
+
+                // Las secciones son opcionales: si el alumno no las manda, la
+                // matricula queda "general" y aun asi puede comentar y calificar.
+                aplicarSecciones(matricula, seleccion.getScheduleIds());
+
+                matriculaRepository.save(matricula);
             }
         }
 
@@ -325,25 +311,67 @@ public class StudentServiceImpl implements StudentService {
 
     private SemesterHistoryEntry construirEntrada(Long userId, String semestreNombre, boolean suspendido) {
         Map<Long, Curso> cache = new HashMap<>();
-        List<CourseHistoryEntry> cursos = new ArrayList<>();
-        for (HorarioAlumno registro : horarioAlumnoRepository.findByIdAlumno(userId)) {
-            Horario horario = registro.getHorario();
-            if (!horario.getSemestre().getSemestre().equals(semestreNombre)) {
+        List<CourseHistoryEntry> cursos = matriculaRepository
+                .findByIdAlumnoAndSemestre_Semestre(userId, semestreNombre).stream()
+                .map(registro -> construirCourseEntry(cache, registro))
+                .toList();
+        return new SemesterHistoryEntry(semestreNombre, suspendido, new ArrayList<>(cursos));
+    }
+
+    private CourseHistoryEntry construirCourseEntry(Map<Long, Curso> cache, MatriculaAlumno registro) {
+        Curso curso = obtenerCurso(cache, registro.getIdCurso());
+        List<SeccionResumen> secciones = registro.getHorarios().stream()
+                .map(MatriculaHorario::getHorario)
+                .map(h -> new SeccionResumen(h.getId(), h.getTipo(), h.getHorario()))
+                .toList();
+
+        return new CourseHistoryEntry(
+                registro.getIdCurso(),
+                curso == null ? null : curso.getCode(),
+                curso == null ? null : curso.getName(),
+                curso == null ? null : curso.getCredits(),
+                registro.getNotaFinal(),
+                Boolean.TRUE.equals(registro.getTieneExcepcion()),
+                curso != null && curso.getSubcategoryId() != null && !Boolean.TRUE.equals(curso.getSubcategoryRequiresAll()),
+                curso == null ? null : curso.getSubcategoryId(),
+                secciones
+        );
+    }
+
+    /**
+     * Reemplaza las secciones enlazadas a una matricula. Se ignoran las que no
+     * pertenezcan al curso y semestre de la matricula, para que un id suelto
+     * no pueda enganchar al alumno a la seccion de otro curso.
+     */
+    private void aplicarSecciones(MatriculaAlumno matricula, List<Long> scheduleIds) {
+        if (scheduleIds == null) {
+            return;
+        }
+        matricula.getHorarios().clear();
+        for (Long idHorario : scheduleIds) {
+            if (idHorario == null) {
                 continue;
             }
-            Curso curso = obtenerCurso(cache, horario.getIdCurso());
-            cursos.add(new CourseHistoryEntry(
-                    horario.getIdCurso(),
-                    curso == null ? null : curso.getCode(),
-                    curso == null ? null : curso.getName(),
-                    curso == null ? null : curso.getCredits(),
-                    registro.getNotaFinal(),
-                    Boolean.TRUE.equals(registro.getTieneExcepcion()),
-                    curso != null && curso.getSubcategoryId() != null && !Boolean.TRUE.equals(curso.getSubcategoryRequiresAll()),
-                    curso == null ? null : curso.getSubcategoryId()
-            ));
+            horarioRepository.findById(idHorario)
+                    .filter(h -> h.getIdCurso().equals(matricula.getIdCurso()))
+                    .filter(h -> h.getSemestre().getSemestre().equals(matricula.getSemestre().getSemestre()))
+                    .ifPresent(h -> {
+                        MatriculaHorario enlace = new MatriculaHorario();
+                        enlace.setMatricula(matricula);
+                        enlace.setHorario(h);
+                        matricula.getHorarios().add(enlace);
+                    });
         }
-        return new SemesterHistoryEntry(semestreNombre, suspendido, cursos);
+    }
+
+    /** Codigo de la seccion de clases que el alumno registro, o null si no registro ninguna. */
+    private String codigoSeccionDeClase(MatriculaAlumno matricula) {
+        return matricula.getHorarios().stream()
+                .map(MatriculaHorario::getHorario)
+                .filter(h -> h.getTipo() == TipoHorario.CLASE)
+                .map(Horario::getHorario)
+                .findFirst()
+                .orElse(null);
     }
 
     @Override
@@ -355,18 +383,18 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public void resetAcademicHistory(Long userId) {
-        horarioAlumnoRepository.deleteByIdAlumno(userId);
+        matriculaRepository.deleteByIdAlumno(userId);
         alumnoSemestreRepository.deleteByIdAlumno(userId);
     }
 
-    // Orden cronologico real de un semestre: 1er ciclo, 2do ciclo, luego verano
-    // (-0, que cae a fin de anio, no al inicio como sugeriria el numero).
+    // Orden cronologico de un semestre. El verano (-0) va enero-febrero, o sea
+    // al INICIO del anio: 2024-0 -> 2024-1 -> 2024-2. Coincide con el orden
+    // numerico natural del ciclo, asi que basta con anio*3 + ciclo.
     private static int ordenSemestre(String semestre) {
         String[] partes = semestre.split("-");
         int anio = Integer.parseInt(partes[0]);
         int ciclo = Integer.parseInt(partes[1]);
-        int ordenCiclo = ciclo == 1 ? 0 : ciclo == 2 ? 1 : 2;
-        return anio * 3 + ordenCiclo;
+        return anio * 3 + ciclo;
     }
 
     private Curso obtenerCurso(Map<Long, Curso> cache, Long id) {

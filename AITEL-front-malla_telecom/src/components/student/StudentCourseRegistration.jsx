@@ -4,11 +4,12 @@ import { SystemApi } from '../../services/student/systemApi';
 
 const CARD = 'mx-auto rounded-2xl border border-line bg-surface p-8';
 
-// Orden cronológico real de un semestre dentro de su año: 1° ciclo, 2° ciclo, luego verano (-0).
+// Orden cronológico de un semestre. El verano (-0) va enero-febrero, o sea al
+// INICIO del año: 2024-0 → 2024-1 → 2024-2. Coincide con el orden numérico
+// natural del ciclo, así que basta con year*3 + cycle.
 const semesterOrderKey = (semester) => {
   const [year, cycle] = semester.split('-').map(Number);
-  const cycleOrder = cycle === 1 ? 0 : cycle === 2 ? 1 : 2;
-  return year * 3 + cycleOrder;
+  return year * 3 + cycle;
 };
 
 const buildSemesterSequence = (startingSemester, currentCycle) => {
